@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import prince
 
+
 def split_var_mod(index_name: str, variables: list[str]):
     """
     Décompose un nom du type 'Kata_Unsu' ou 'Victoire_norm_True'
@@ -71,7 +72,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         selected_type_compet = st.radio(
             "Type de compétition",
             type_compet_options,
-            key="clic_ACM",
+            key="acm_type_compet",
         )
 
         if selected_type_compet != "Tous":
@@ -108,6 +109,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             "Type(s) de Tour à inclure",
             options=type_de_tour_modalities,
             default=type_de_tour_modalities,
+            key="acm_type_tour",
         )
 
         if not selected_types:
@@ -128,6 +130,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             "Sexe à inclure",
             sexe_modalities,
             index=0,
+            key="acm_sexe",
         )
 
         if selected_sexe != "Aucun":
@@ -137,7 +140,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                 st.markdown("</div>", unsafe_allow_html=True)
                 return
 
-                # =========================
+        # =========================
         # Filtre Style (Shotokan / ShitoRyu)
         # =========================
         st.markdown("---")
@@ -159,6 +162,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                     "Style(s) à inclure",
                     options=style_values,
                     default=style_values,
+                    key="acm_style",
                 )
 
                 # Style par kata (liste de styles par kata)
@@ -207,7 +211,6 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
             return
 
-
         # =========================
         # Filtre sur les Katas
         # =========================
@@ -224,6 +227,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             "Katas à inclure dans l'ACM",
             options=kata_modalities,
             default=kata_modalities,
+            key="acm_katas",
         )
 
         if not selected_katas:
@@ -258,8 +262,16 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         st.markdown("---")
         st.markdown("#### 🎨 Options d'affichage")
 
-        display_individuals = st.checkbox("Afficher les individus", value=False)
-        display_modalities = st.checkbox("Afficher les modalités des variables", value=True)
+        display_individuals = st.checkbox(
+            "Afficher les individus",
+            value=False,
+            key="acm_display_individuals",
+        )
+        display_modalities = st.checkbox(
+            "Afficher les modalités des variables",
+            value=True,
+            key="acm_display_modalities",
+        )
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -334,7 +346,6 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         modalities_coords["Variable"] = variables
         modalities_coords["Modalité"] = modalites
 
-
         # Coordonnées des individus (optionnel)
         if display_individuals:
             individuals_coords = mca.row_coordinates(data_mca)
@@ -381,8 +392,6 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                     hoverinfo="text",
                 )
             )
-
-
 
         # Limites d’axes
         if display_individuals:
@@ -434,7 +443,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         # =========================
         st.subheader("Interprétation de l'ACM")
 
-        if st.button("Interpréter automatiquement l'ACM"):
+        if st.button("Interpréter automatiquement l'ACM", key="acm_interpret"):
             # ---- Fonction d'interprétation détaillée
             def interpret_acm(mca_obj, data_mca_local, mca_vars):
                 output = StringIO()
@@ -630,8 +639,6 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                         else:
                             output.write("- Aucun kata interprétable dans cette configuration.\n")
 
-
-
                 output.write("\n---\n")
                 output.write("### 3. Comment lire ces résultats (version vulgarisée)\n\n")
                 output.write(
@@ -662,7 +669,6 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
             interpretation = interpret_acm(mca, data_mca, mca_variables)
             st.markdown(interpretation)
-
 
         else:
             # Explication statique

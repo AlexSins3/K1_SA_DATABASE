@@ -309,7 +309,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
         selected_type_compet = st.radio(
             "Type de compétition",
             type_compet_options,
-            key="clic_graph",
+            key="graphs_type_compet",
         )
 
         if selected_type_compet != "Tous":
@@ -326,12 +326,28 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
         st.markdown("#### Axes du graphique")
 
         # Axe X
-        x_num = st.selectbox("Variable numérique (X)", ["Aucune"] + variables_numeriques)
-        x_cat = st.selectbox("Variable catégorielle (X)", ["Aucune"] + variables_categorielles)
+        x_num = st.selectbox(
+            "Variable numérique (X)",
+            ["Aucune"] + variables_numeriques,
+            key="graphs_x_num",
+        )
+        x_cat = st.selectbox(
+            "Variable catégorielle (X)",
+            ["Aucune"] + variables_categorielles,
+            key="graphs_x_cat",
+        )
 
         # Axe Y
-        y_num = st.selectbox("Variable numérique (Y)", ["Aucune"] + variables_numeriques)
-        y_cat = st.selectbox("Variable catégorielle (Y)", ["Aucune"] + variables_categorielles)
+        y_num = st.selectbox(
+            "Variable numérique (Y)",
+            ["Aucune"] + variables_numeriques,
+            key="graphs_y_num",
+        )
+        y_cat = st.selectbox(
+            "Variable catégorielle (Y)",
+            ["Aucune"] + variables_categorielles,
+            key="graphs_y_cat",
+        )
 
         # Filtres supplémentaires par cas (on choisira case par case côté droit)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -367,7 +383,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 filtre_var = st.selectbox(
                     "Variable catégorielle pour filtrer",
                     ["Aucune"] + variables_categorielles,
-                    key="filter_num_only",
+                    key="graphs_filter_num_only",
                 )
 
                 if filtre_var != "Aucune":
@@ -376,7 +392,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                         f"Modalités de {filtre_var}",
                         modalites,
                         default=modalites,
-                        key="modalites_num_only",
+                        key="graphs_modalites_num_only",
                     )
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -415,7 +431,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test de normalité (automatique)")
-            if st.button("Effectuer le test de normalité"):
+            if st.button("Effectuer le test de normalité", key="graphs_btn_normality"):
                 res = normality_test_auto(data_filtered[y_num])
 
                 if np.isnan(res["stat"]) or np.isnan(res["p"]):
@@ -451,7 +467,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 filtre_var = st.selectbox(
                     "Variable catégorielle pour filtrer",
                     ["Aucune"] + variables_categorielles,
-                    key="filter_y_num_x_cat",
+                    key="graphs_filter_y_num_x_cat",
                 )
 
                 if filtre_var != "Aucune":
@@ -460,7 +476,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                         f"Modalités de {filtre_var}",
                         modalites,
                         default=modalites,
-                        key="modalites_y_num_x_cat",
+                        key="graphs_modalites_y_num_x_cat",
                     )
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -479,7 +495,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test Statistique (automatique)")
-            if st.button("Effectuer le test statistique"):
+            if st.button("Effectuer le test statistique", key="graphs_btn_y_num_x_cat"):
                 res = oneway_test_auto(data_filtered, y_num, x_cat)
 
                 if np.isnan(res["stat"]) or np.isnan(res["p"]):
@@ -515,7 +531,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 filtre_var = st.selectbox(
                     "Variable catégorielle pour filtrer",
                     ["Aucune"] + variables_categorielles,
-                    key="filter_y_cat_only",
+                    key="graphs_filter_y_cat_only",
                 )
 
                 if filtre_var != "Aucune":
@@ -524,7 +540,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                         f"Modalités de {filtre_var}",
                         modalites,
                         default=modalites,
-                        key="modalites_y_cat_only",
+                        key="graphs_modalites_y_cat_only",
                     )
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -558,7 +574,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 filtre_var = st.selectbox(
                     "Variable catégorielle pour filtrer",
                     ["Aucune"] + variables_categorielles,
-                    key="filter_x_y_cat",
+                    key="graphs_filter_x_y_cat",
                 )
 
                 if filtre_var != "Aucune":
@@ -567,7 +583,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                         f"Modalités de {filtre_var}",
                         modalites,
                         default=modalites,
-                        key="modalites_x_y_cat",
+                        key="graphs_modalites_x_y_cat",
                     )
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -594,7 +610,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test Statistique (automatique)")
-            if st.button("Effectuer le test d'indépendance"):
+            if st.button("Effectuer le test d'indépendance", key="graphs_btn_x_y_cat"):
                 res = chi2_or_fisher_auto(data_filtered, x_cat, y_cat)
 
                 if np.isnan(res["stat"]) or np.isnan(res["p"]):
@@ -636,7 +652,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 filtre_var = st.selectbox(
                     "Variable catégorielle pour filtrer",
                     ["Aucune"] + variables_categorielles,
-                    key="filter_x_y_num",
+                    key="graphs_filter_x_y_num",
                 )
 
                 if filtre_var != "Aucune":
@@ -645,7 +661,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                         f"Modalités de {filtre_var}",
                         modalites,
                         default=modalites,
-                        key="modalites_x_y_num",
+                        key="graphs_modalites_x_y_num",
                     )
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -664,7 +680,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test de corrélation (automatique)")
-            if st.button("Effectuer le test de corrélation"):
+            if st.button("Effectuer le test de corrélation", key="graphs_btn_corr"):
                 res = correlation_auto(data_filtered[x_num], data_filtered[y_num])
 
                 if not res["tests"]:

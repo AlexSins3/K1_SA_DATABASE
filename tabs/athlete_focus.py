@@ -64,7 +64,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         selected_type_compet = st.radio(
             "Type de compétition",
             type_compet_options,
-            key="clic_athlete",
+            key="athlete_type_compet",
         )
 
         if selected_type_compet != "Tous":
@@ -86,7 +86,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         selected_sexe = st.radio(
             "Sexe des athlètes",
             sexe_options,
-            key="clic_sexe",
+            key="athlete_sexe",
         )
 
         data_athlete = data_athlete[data_athlete['Sexe'] == selected_sexe].copy()
@@ -100,13 +100,13 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
             return
 
-        selected_athlete = st.selectbox("Athlète principal", athlete_names)
+        selected_athlete = st.selectbox("Athlète principal", athlete_names, key = "athlete_main_select",)
 
         athlete_data = data_athlete[data_athlete['Nom'] == selected_athlete].copy()
 
         # ---- Athlète comparé
         compare_options = ["Aucun"] + [name for name in athlete_names if name != selected_athlete]
-        selected_compare_athlete = st.selectbox("Comparer à", compare_options)
+        selected_compare_athlete = st.selectbox("Comparer à", compare_options, key="athlete_compare_select",)
 
         if selected_compare_athlete != "Aucun":
             compare_athlete_data = data_athlete[data_athlete['Nom'] == selected_compare_athlete].copy()
@@ -130,6 +130,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 "Tours (N_Tour)",
                 options=tour_options,
                 default=tour_options,
+                key="athlete_tours_filter",
             )
         else:
             selected_tours = []
@@ -148,6 +149,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 "Compétitions",
                 options=competition_options,
                 default=competition_options,
+                key="athlete_compet_filter",
             )
         else:
             selected_competitions = []
@@ -826,8 +828,6 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
 
         # On garde l'ordre d'origine (après filtrage)
         df_hist = df_hist.reset_index(drop=True)
-
-        st.subheader("Historique")
 
         # Cas 1 : un seul athlète → Historique des tours
         if compare_athlete_data is None or compare_athlete_data.empty:
