@@ -28,7 +28,7 @@ def show_dataset_tab(data: pd.DataFrame) -> None:
         if grade_selection:
             df = df[df['Grade'].isin(grade_selection)]
 
-    st.dataframe(df[colonnes_selectionnees], use_container_width=True)
+    st.dataframe(df[colonnes_selectionnees], width="stretch")
 
     # Bouton de téléchargement du CSV filtré
     csv = _convertir_csv(df[colonnes_selectionnees])

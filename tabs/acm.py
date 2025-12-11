@@ -427,7 +427,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             line=dict(color="black", width=1),
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # =========================
         # Interprétation détaillée / pédagogique

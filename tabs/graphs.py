@@ -412,7 +412,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 annotation_position='top right',
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test de normalité (automatique)")
             if st.button("Effectuer le test de normalité"):
@@ -476,7 +476,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 return
 
             fig = px.box(data_filtered, x=x_cat, y=y_num, points='all')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test Statistique (automatique)")
             if st.button("Effectuer le test statistique"):
@@ -538,13 +538,13 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             counts = data_filtered[y_cat].value_counts().reset_index()
             counts.columns = [y_cat, 'Effectif']
             fig_count = px.bar(counts, x=y_cat, y='Effectif')
-            st.plotly_chart(fig_count, use_container_width=True)
+            st.plotly_chart(fig_count, width="stretch")
 
             st.markdown(f"**Histogramme des proportions de chaque modalité de `{y_cat}`**")
             counts_prop = data_filtered[y_cat].value_counts(normalize=True).reset_index()
             counts_prop.columns = [y_cat, 'Proportion']
             fig_prop = px.bar(counts_prop, x=y_cat, y='Proportion')
-            st.plotly_chart(fig_prop, use_container_width=True)
+            st.plotly_chart(fig_prop, width="stretch")
 
         # =========
         # Cas 4 : X et Y catégorielles
@@ -591,7 +591,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 color=y_cat,
                 barmode='stack',
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test Statistique (automatique)")
             if st.button("Effectuer le test d'indépendance"):
@@ -661,7 +661,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 return
 
             fig = px.scatter(data_filtered, x=x_num, y=y_num)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader("Test de corrélation (automatique)")
             if st.button("Effectuer le test de corrélation"):

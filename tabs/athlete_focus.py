@@ -531,7 +531,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 )
                 fig_k1.update_traces(textposition="outside")
                 fig_k1.update_yaxes(tickmode="array", tickvals=tickvals, ticktext=ticktexts)
-                st.plotly_chart(fig_k1, use_container_width=True)
+                st.plotly_chart(fig_k1, width="stretch")
 
         with col_separator:
             st.markdown(
@@ -568,7 +568,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 )
                 fig_sa.update_traces(textposition="outside")
                 fig_sa.update_yaxes(tickmode="array", tickvals=tickvals_sa, ticktext=ticktexts_sa)
-                st.plotly_chart(fig_sa, use_container_width=True)
+                st.plotly_chart(fig_sa, width="stretch")
 
         # ==============
         # 3. Histogramme des Katas effectués
@@ -601,7 +601,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 )
                 fig_kata.update_layout(xaxis_title='Kata', yaxis_title='Nombre de fois')
                 fig_kata.update_traces(textposition='outside')
-                st.plotly_chart(fig_kata, use_container_width=True)
+                st.plotly_chart(fig_kata, width="stretch")
 
         with col_separator:
             if compare_athlete_data is not None and not compare_athlete_data.empty:
@@ -638,7 +638,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     )
                     fig_kata_comp.update_layout(xaxis_title='Kata', yaxis_title='Nombre de fois')
                     fig_kata_comp.update_traces(textposition='outside')
-                    st.plotly_chart(fig_kata_comp, use_container_width=True)
+                    st.plotly_chart(fig_kata_comp, width="stretch")
             else:
                 st.markdown(
                     "<p style='font-size:12px;color:gray;'>Aucun athlète comparé sélectionné</p>",
@@ -708,7 +708,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 title="Moyenne des notes par Tour (tours réellement disputés)",
             )
 
-            st.plotly_chart(fig_kiviat_tour, use_container_width=True)
+            st.plotly_chart(fig_kiviat_tour, width="stretch")
 
         # ==============
         # 5. Kiviat moyenne des notes par Kata
@@ -800,7 +800,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 title="Moyenne des notes par Kata",
             )
 
-            st.plotly_chart(fig_kiviat_kata, use_container_width=True)
+            st.plotly_chart(fig_kiviat_kata, width="stretch")
 
         # ==============
         # 6. Historique : tours ou rencontres
@@ -880,7 +880,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     lambda s: highlight_victory_series(s) if s.name == "Victoire" else [""] * len(s),
                     axis=0,
                 )
-                st.dataframe(styled, use_container_width=True)
+                st.dataframe(styled, width="stretch")
 
         # Cas 2 : deux athlètes → Historique des rencontres
         else:
@@ -928,5 +928,5 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     lambda s: highlight_victory_series(s) if s.name == "Victoire" else [""] * len(s),
                     axis=0,
                 )
-                st.dataframe(styled_meet, use_container_width=True)
+                st.dataframe(styled_meet, width="stretch")
 
