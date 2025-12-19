@@ -69,14 +69,14 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
 
         if selected_type_compet != "Tous":
             if selected_type_compet == "Premier League (K1)":
-                data_athlete = df[df['Type_Compet'] == 'K1'].copy()
+                data_athlete = df[df["Type_Compet"] == "K1"].copy()
             elif selected_type_compet == "Series A (SA)":
-                data_athlete = df[df['Type_Compet'] == 'SA'].copy()
+                data_athlete = df[df["Type_Compet"] == "SA"].copy()
         else:
             data_athlete = df.copy()
 
         # ---- Sexe
-        sexe_options = data_athlete['Sexe'].dropna().unique().tolist()
+        sexe_options = data_athlete["Sexe"].dropna().unique().tolist()
         sexe_options = sorted(sexe_options)
         if not sexe_options:
             st.warning("Aucun sexe disponible dans les données filtrées.")
@@ -89,10 +89,10 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
             key="athlete_sexe",
         )
 
-        data_athlete = data_athlete[data_athlete['Sexe'] == selected_sexe].copy()
+        data_athlete = data_athlete[data_athlete["Sexe"] == selected_sexe].copy()
 
         # ---- Liste des athlètes
-        athlete_names = data_athlete['Nom'].dropna().unique().tolist()
+        athlete_names = data_athlete["Nom"].dropna().unique().tolist()
         athlete_names.sort()
 
         if not athlete_names:
@@ -100,16 +100,20 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
             st.markdown("</div>", unsafe_allow_html=True)
             return
 
-        selected_athlete = st.selectbox("Athlète principal", athlete_names, key = "athlete_main_select",)
+        selected_athlete = st.selectbox(
+            "Athlète principal", athlete_names, key="athlete_main_select"
+        )
 
-        athlete_data = data_athlete[data_athlete['Nom'] == selected_athlete].copy()
+        athlete_data = data_athlete[data_athlete["Nom"] == selected_athlete].copy()
 
         # ---- Athlète comparé
         compare_options = ["Aucun"] + [name for name in athlete_names if name != selected_athlete]
-        selected_compare_athlete = st.selectbox("Comparer à", compare_options, key="athlete_compare_select",)
+        selected_compare_athlete = st.selectbox(
+            "Comparer à", compare_options, key="athlete_compare_select"
+        )
 
         if selected_compare_athlete != "Aucun":
-            compare_athlete_data = data_athlete[data_athlete['Nom'] == selected_compare_athlete].copy()
+            compare_athlete_data = data_athlete[data_athlete["Nom"] == selected_compare_athlete].copy()
         else:
             compare_athlete_data = None
 
@@ -119,11 +123,11 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         # ---- Filtres pour les tours (histogrammes Kata)
         if compare_athlete_data is not None:
             tour_options = sorted(
-                set(athlete_data['N_Tour'].dropna().unique())
-                | set(compare_athlete_data['N_Tour'].dropna().unique())
+                set(athlete_data["N_Tour"].dropna().unique())
+                | set(compare_athlete_data["N_Tour"].dropna().unique())
             )
         else:
-            tour_options = sorted(athlete_data['N_Tour'].dropna().unique().tolist())
+            tour_options = sorted(athlete_data["N_Tour"].dropna().unique().tolist())
 
         if tour_options:
             selected_tours = st.multiselect(
@@ -138,11 +142,11 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         # ---- Filtres pour les compétitions (Kiviat)
         if compare_athlete_data is not None:
             competition_options = sorted(
-                set(athlete_data['Competition'].dropna().unique())
-                | set(compare_athlete_data['Competition'].dropna().unique())
+                set(athlete_data["Competition"].dropna().unique())
+                | set(compare_athlete_data["Competition"].dropna().unique())
             )
         else:
-            competition_options = sorted(athlete_data['Competition'].dropna().unique().tolist())
+            competition_options = sorted(athlete_data["Competition"].dropna().unique().tolist())
 
         if competition_options:
             selected_competitions = st.multiselect(
@@ -292,7 +296,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
 
     def athlete_label_html(name: str) -> str:
         return f"<p style='font-size:13px;font-style:italic;color:#555;'>Athlète : {name}</p>"
-        
+
     def highlight_victory_series(s: pd.Series):
         styles = []
         for v in s:
@@ -333,7 +337,6 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         # Fallback (au cas où)
         return "Oui" if bool(v) else "Non"
 
-
     # =========================
     # Colonne de droite : contenu / visualisations
     # =========================
@@ -353,12 +356,12 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         with col_left:
             st.markdown(athlete_label_html(selected_athlete), unsafe_allow_html=True)
 
-            sexe = athlete_data['Sexe'].mode()[0] if not athlete_data['Sexe'].mode().empty else "Non spécifié"
-            nation = athlete_data['Nation'].mode()[0] if not athlete_data['Nation'].mode().empty else "Non spécifié"
-            style = athlete_data['Style'].mode()[0] if not athlete_data['Style'].mode().empty else "Non spécifié"
+            sexe = athlete_data["Sexe"].mode()[0] if not athlete_data["Sexe"].mode().empty else "Non spécifié"
+            nation = athlete_data["Nation"].mode()[0] if not athlete_data["Nation"].mode().empty else "Non spécifié"
+            style = athlete_data["Style"].mode()[0] if not athlete_data["Style"].mode().empty else "Non spécifié"
 
             # Dernier âge connu
-            age_series = athlete_data['Age'].dropna()
+            age_series = athlete_data["Age"].dropna()
             if age_series.empty:
                 age_display = "Non spécifié"
             else:
@@ -369,7 +372,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     age_display = f"{last_age} ans"
 
             # Dernier ranking connu
-            ranking_series = athlete_data['Ranking'].dropna()
+            ranking_series = athlete_data["Ranking"].dropna()
             if ranking_series.empty:
                 ranking_str = "Non spécifié"
             else:
@@ -405,12 +408,24 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     unsafe_allow_html=True,
                 )
 
-                sexe_comp = compare_athlete_data['Sexe'].mode()[0] if not compare_athlete_data['Sexe'].mode().empty else "Non spécifié"
-                nation_comp = compare_athlete_data['Nation'].mode()[0] if not compare_athlete_data['Nation'].mode().empty else "Non spécifié"
-                style_comp = compare_athlete_data['Style'].mode()[0] if not compare_athlete_data['Style'].mode().empty else "Non spécifié"
+                sexe_comp = (
+                    compare_athlete_data["Sexe"].mode()[0]
+                    if not compare_athlete_data["Sexe"].mode().empty
+                    else "Non spécifié"
+                )
+                nation_comp = (
+                    compare_athlete_data["Nation"].mode()[0]
+                    if not compare_athlete_data["Nation"].mode().empty
+                    else "Non spécifié"
+                )
+                style_comp = (
+                    compare_athlete_data["Style"].mode()[0]
+                    if not compare_athlete_data["Style"].mode().empty
+                    else "Non spécifié"
+                )
 
                 # Dernier âge connu (comparé)
-                age_series_comp = compare_athlete_data['Age'].dropna()
+                age_series_comp = compare_athlete_data["Age"].dropna()
                 if age_series_comp.empty:
                     age_comp_display = "Non spécifié"
                 else:
@@ -421,7 +436,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                         age_comp_display = f"{last_age_comp} ans"
 
                 # Dernier ranking connu (comparé)
-                ranking_series_comp = compare_athlete_data['Ranking'].dropna()
+                ranking_series_comp = compare_athlete_data["Ranking"].dropna()
                 if ranking_series_comp.empty:
                     ranking_str_comp = "Non spécifié"
                 else:
@@ -533,7 +548,12 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 )
                 fig_k1.update_traces(textposition="outside")
                 fig_k1.update_yaxes(tickmode="array", tickvals=tickvals, ticktext=ticktexts)
-                st.plotly_chart(fig_k1, width="stretch")
+
+                st.plotly_chart(
+                    fig_k1,
+                    width="stretch",
+                    key=f"max_tour_k1_{selected_sexe}_{selected_type_compet}_{selected_athlete}_{selected_compare_athlete}",
+                )
 
         with col_separator:
             st.markdown(
@@ -570,7 +590,12 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 )
                 fig_sa.update_traces(textposition="outside")
                 fig_sa.update_yaxes(tickmode="array", tickvals=tickvals_sa, ticktext=ticktexts_sa)
-                st.plotly_chart(fig_sa, width="stretch")
+
+                st.plotly_chart(
+                    fig_sa,
+                    width="stretch",
+                    key=f"max_tour_sa_{selected_sexe}_{selected_type_compet}_{selected_athlete}_{selected_compare_athlete}",
+                )
 
         # ==============
         # 3. Histogramme des Katas effectués
@@ -583,27 +608,33 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         with col_left:
             st.markdown(athlete_label_html(selected_athlete), unsafe_allow_html=True)
             if selected_tours:
-                kata_data = athlete_data[athlete_data['N_Tour'].isin(selected_tours)]
+                kata_data = athlete_data[athlete_data["N_Tour"].isin(selected_tours)]
             else:
                 kata_data = athlete_data.copy()
-            kata_counts = kata_data['Kata'].value_counts().reset_index()
-            kata_counts.columns = ['Kata', 'Nombre']
-            kata_counts = kata_counts[kata_counts['Nombre'] > 0]
+
+            kata_counts = kata_data["Kata"].value_counts().reset_index()
+            kata_counts.columns = ["Kata", "Nombre"]
+            kata_counts = kata_counts[kata_counts["Nombre"] > 0]
 
             if kata_counts.empty:
                 st.warning("Aucun Kata à afficher pour les tours sélectionnés.")
             else:
                 fig_kata = px.bar(
                     kata_counts,
-                    x='Kata',
-                    y='Nombre',
-                    title='Nombre de Katas effectués',
-                    labels={'Nombre': 'Nombre de fois'},
-                    text='Nombre',
+                    x="Kata",
+                    y="Nombre",
+                    title="Nombre de Katas effectués",
+                    labels={"Nombre": "Nombre de fois"},
+                    text="Nombre",
                 )
-                fig_kata.update_layout(xaxis_title='Kata', yaxis_title='Nombre de fois')
-                fig_kata.update_traces(textposition='outside')
-                st.plotly_chart(fig_kata, width="stretch")
+                fig_kata.update_layout(xaxis_title="Kata", yaxis_title="Nombre de fois")
+                fig_kata.update_traces(textposition="outside")
+
+                st.plotly_chart(
+                    fig_kata,
+                    width="stretch",
+                    key=f"hist_kata_main_{selected_sexe}_{selected_type_compet}_{selected_athlete}_{len(selected_tours)}",
+                )
 
         with col_separator:
             if compare_athlete_data is not None and not compare_athlete_data.empty:
@@ -620,27 +651,33 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     unsafe_allow_html=True,
                 )
                 if selected_tours:
-                    kata_data_comp = compare_athlete_data[compare_athlete_data['N_Tour'].isin(selected_tours)]
+                    kata_data_comp = compare_athlete_data[compare_athlete_data["N_Tour"].isin(selected_tours)]
                 else:
                     kata_data_comp = compare_athlete_data.copy()
-                kata_counts_comp = kata_data_comp['Kata'].value_counts().reset_index()
-                kata_counts_comp.columns = ['Kata', 'Nombre']
-                kata_counts_comp = kata_counts_comp[kata_counts_comp['Nombre'] > 0]
+
+                kata_counts_comp = kata_data_comp["Kata"].value_counts().reset_index()
+                kata_counts_comp.columns = ["Kata", "Nombre"]
+                kata_counts_comp = kata_counts_comp[kata_counts_comp["Nombre"] > 0]
 
                 if kata_counts_comp.empty:
                     st.warning("Aucun Kata à afficher pour les tours sélectionnés.")
                 else:
                     fig_kata_comp = px.bar(
                         kata_counts_comp,
-                        x='Kata',
-                        y='Nombre',
-                        title='Nombre de Katas effectués',
-                        labels={'Nombre': 'Nombre de fois'},
-                        text='Nombre',
+                        x="Kata",
+                        y="Nombre",
+                        title="Nombre de Katas effectués",
+                        labels={"Nombre": "Nombre de fois"},
+                        text="Nombre",
                     )
-                    fig_kata_comp.update_layout(xaxis_title='Kata', yaxis_title='Nombre de fois')
-                    fig_kata_comp.update_traces(textposition='outside')
-                    st.plotly_chart(fig_kata_comp, width="stretch")
+                    fig_kata_comp.update_layout(xaxis_title="Kata", yaxis_title="Nombre de fois")
+                    fig_kata_comp.update_traces(textposition="outside")
+
+                    st.plotly_chart(
+                        fig_kata_comp,
+                        width="stretch",
+                        key=f"hist_kata_comp_{selected_sexe}_{selected_type_compet}_{selected_compare_athlete}_{selected_athlete}_{len(selected_tours)}",
+                    )
             else:
                 st.markdown(
                     "<p style='font-size:12px;color:gray;'>Aucun athlète comparé sélectionné</p>",
@@ -654,30 +691,30 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
 
         def compute_avg_notes_by_tour(df_source: pd.DataFrame, athlete_name: str) -> pd.DataFrame:
             if selected_competitions:
-                note_data = df_source[df_source['Competition'].isin(selected_competitions)]
+                note_data = df_source[df_source["Competition"].isin(selected_competitions)]
             else:
                 note_data = df_source.copy()
 
-            note_data = note_data.dropna(subset=['Note', 'N_Tour'])
+            note_data = note_data.dropna(subset=["Note", "N_Tour"])
 
             if note_data.empty:
-                return pd.DataFrame(columns=['Tour', 'Moyenne_Note', 'Athlète'])
+                return pd.DataFrame(columns=["Tour", "Moyenne_Note", "Athlète"])
 
-            note_data['Tour_Kiviat'] = note_data.apply(map_tour_for_kiviat, axis=1)
-            note_data = note_data.dropna(subset=['Tour_Kiviat'])
+            note_data["Tour_Kiviat"] = note_data.apply(map_tour_for_kiviat, axis=1)
+            note_data = note_data.dropna(subset=["Tour_Kiviat"])
 
             if note_data.empty:
-                return pd.DataFrame(columns=['Tour', 'Moyenne_Note', 'Athlète'])
+                return pd.DataFrame(columns=["Tour", "Moyenne_Note", "Athlète"])
 
-            grouped = note_data.groupby('Tour_Kiviat')['Note'].mean().reset_index()
-            grouped['Athlète'] = athlete_name
+            grouped = note_data.groupby("Tour_Kiviat")["Note"].mean().reset_index()
+            grouped["Athlète"] = athlete_name
 
             # On ajoute un ordre pour organiser le Kiviat
-            grouped['Order'] = grouped['Tour_Kiviat'].map(KIVIAT_TOUR_ORDER).fillna(999)
-            grouped = grouped.sort_values('Order')
+            grouped["Order"] = grouped["Tour_Kiviat"].map(KIVIAT_TOUR_ORDER).fillna(999)
+            grouped = grouped.sort_values("Order")
 
-            grouped.rename(columns={'Tour_Kiviat': 'Tour', 'Note': 'Moyenne_Note'}, inplace=True)
-            return grouped[['Tour', 'Moyenne_Note', 'Athlète']]
+            grouped.rename(columns={"Tour_Kiviat": "Tour", "Note": "Moyenne_Note"}, inplace=True)
+            return grouped[["Tour", "Moyenne_Note", "Athlète"]]
 
         df_kiviat_tour = compute_avg_notes_by_tour(athlete_data, selected_athlete)
 
@@ -690,14 +727,16 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         else:
             fig_kiviat_tour = go.Figure()
 
-            for athlete_name in df_kiviat_tour['Athlète'].unique():
-                subset = df_kiviat_tour[df_kiviat_tour['Athlète'] == athlete_name]
-                fig_kiviat_tour.add_trace(go.Scatterpolar(
-                    r=subset['Moyenne_Note'],
-                    theta=subset['Tour'],
-                    fill='toself',
-                    name=athlete_name,
-                ))
+            for athlete_name in df_kiviat_tour["Athlète"].unique():
+                subset = df_kiviat_tour[df_kiviat_tour["Athlète"] == athlete_name]
+                fig_kiviat_tour.add_trace(
+                    go.Scatterpolar(
+                        r=subset["Moyenne_Note"],
+                        theta=subset["Tour"],
+                        fill="toself",
+                        name=athlete_name,
+                    )
+                )
 
             fig_kiviat_tour.update_layout(
                 polar=dict(
@@ -710,42 +749,36 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 title="Moyenne des notes par Tour (tours réellement disputés)",
             )
 
-            st.plotly_chart(fig_kiviat_tour, width="stretch")
+            st.plotly_chart(
+                fig_kiviat_tour,
+                width="stretch",
+                key=f"kiviat_tour_{selected_sexe}_{selected_type_compet}_{selected_athlete}_{selected_compare_athlete}_{len(selected_competitions)}",
+            )
 
         # ==============
-        # 5. Kiviat moyenne des notes par Kata
+        # 5. Kiviat moyenne des notes par Kata (hover kata + note)
         # ==============
         st.subheader("Moyenne des notes par Kata")
 
-        # --- Détermination des katas à afficher ---
-        # On tient compte des compétitions sélectionnées, comme pour le reste.
         def get_katas_for_athlete(df_source: pd.DataFrame) -> set:
             d = df_source.copy()
             if selected_competitions:
                 d = d[d["Competition"].isin(selected_competitions)]
             return set(d["Kata"].dropna().unique())
 
-        # Katas de l’athlète principal
         katas_a = get_katas_for_athlete(athlete_data)
 
         if compare_athlete_data is not None and not compare_athlete_data.empty:
-            # Katas de l’athlète comparé
             katas_b = get_katas_for_athlete(compare_athlete_data)
-
-            # Intersection d’abord (katas faits par les deux)
             common_katas = katas_a & katas_b
-
             if common_katas:
                 kata_list = sorted(common_katas)
             else:
-                # Cas extrême : aucun kata en commun → on prend l’union
                 kata_list = sorted(katas_a | katas_b)
         else:
-            # Un seul athlète : uniquement ses katas
             kata_list = sorted(katas_a)
 
         def compute_avg_notes_by_kata(df_source: pd.DataFrame, athlete_name: str) -> pd.DataFrame:
-            # Filtre compet + colonnes utiles
             d = df_source.copy()
             if selected_competitions:
                 d = d[d["Competition"].isin(selected_competitions)]
@@ -754,9 +787,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
             if not kata_list:
                 return pd.DataFrame(columns=["Kata", "Moyenne_Note", "Athlète"])
 
-            # On garde uniquement les katas choisis (intersection/union définie plus haut)
             d = d[d["Kata"].isin(kata_list)]
-
             if d.empty:
                 return pd.DataFrame(columns=["Kata", "Moyenne_Note", "Athlète"])
 
@@ -765,10 +796,8 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
             grouped.rename(columns={"Note": "Moyenne_Note"}, inplace=True)
             return grouped[["Kata", "Moyenne_Note", "Athlète"]]
 
-        # Athlète principal
         df_kiviat_kata = compute_avg_notes_by_kata(athlete_data, selected_athlete)
 
-        # Athlète comparé éventuel
         if compare_athlete_data is not None and not compare_athlete_data.empty:
             df_kiviat_kata_comp = compute_avg_notes_by_kata(compare_athlete_data, selected_compare_athlete)
             df_kiviat_kata = pd.concat([df_kiviat_kata, df_kiviat_kata_comp], ignore_index=True)
@@ -776,20 +805,29 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         if df_kiviat_kata.empty:
             st.info("Aucune note disponible pour construire le diagramme par Kata.")
         else:
-            # On impose un ordre unique des katas pour tous les tracés
             df_kiviat_kata["Kata"] = pd.Categorical(df_kiviat_kata["Kata"], categories=kata_list, ordered=True)
             df_kiviat_kata = df_kiviat_kata.sort_values("Kata")
 
             fig_kiviat_kata = go.Figure()
 
             for athlete_name in df_kiviat_kata["Athlète"].unique():
-                subset = df_kiviat_kata[df_kiviat_kata["Athlète"] == athlete_name]
-                fig_kiviat_kata.add_trace(go.Scatterpolar(
-                    r=subset["Moyenne_Note"],
-                    theta=subset["Kata"],
-                    fill="toself",
-                    name=athlete_name,
-                ))
+                subset = df_kiviat_kata[df_kiviat_kata["Athlète"] == athlete_name].copy()
+                subset["note_hover"] = subset["Moyenne_Note"].astype(float).round(2)
+
+                fig_kiviat_kata.add_trace(
+                    go.Scatterpolar(
+                        r=subset["Moyenne_Note"],
+                        theta=subset["Kata"],
+                        fill="toself",
+                        name=athlete_name,
+                        customdata=subset[["note_hover"]],
+                        hovertemplate=(
+                            "<b>%{theta}</b><br>"
+                            "Note moyenne: %{customdata[0]:.2f}<br>"
+                            "<extra>" + athlete_name + "</extra>"
+                        ),
+                    )
+                )
 
             fig_kiviat_kata.update_layout(
                 polar=dict(
@@ -802,37 +840,35 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 title="Moyenne des notes par Kata",
             )
 
-            st.plotly_chart(fig_kiviat_kata, width="stretch")
+            st.plotly_chart(
+                fig_kiviat_kata,
+                width="stretch",
+                key=f"kiviat_kata_{selected_sexe}_{selected_type_compet}_{selected_athlete}_{selected_compare_athlete}_{len(selected_competitions)}",
+            )
 
         # ==============
         # 6. Historique : tours ou rencontres
         # ==============
-
         st.subheader("Historique")
-        # On repart d'un DF filtré comme le reste du module pour rester cohérent
+
         df_hist = df.copy()
 
-        # Filtre type de compétition
         if selected_type_compet == "Premier League (K1)":
             df_hist = df_hist[df_hist["Type_Compet"] == "K1"]
         elif selected_type_compet == "Series A (SA)":
             df_hist = df_hist[df_hist["Type_Compet"] == "SA"]
 
-        # Filtre sexe
         if selected_sexe is not None and "Sexe" in df_hist.columns:
             df_hist = df_hist[df_hist["Sexe"] == selected_sexe]
 
-        # Filtre compétitions avancées (même logique que pour les Kiviat)
         if selected_competitions:
             df_hist = df_hist[df_hist["Competition"].isin(selected_competitions)]
 
-        # On garde l'ordre d'origine (après filtrage)
         df_hist = df_hist.reset_index(drop=True)
 
         # Cas 1 : un seul athlète → Historique des tours
         if compare_athlete_data is None or compare_athlete_data.empty:
             st.markdown("##### Historique des tours")
-            # On récupère uniquement les lignes de l'athlète
             df_a = df_hist[df_hist["Nom"] == selected_athlete].copy()
 
             if df_a.empty:
@@ -844,15 +880,12 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     ceinture = row.get("Ceinture")
                     opp_name = "Inconnu"
 
-                    # Recherche de l'adversaire sur la ligne précédente ou suivante
                     if ceinture == "R":
-                        # adversaire = bleu sur la ligne suivante
                         if idx + 1 < len(df_hist):
                             opp_row = df_hist.iloc[idx + 1]
                             if opp_row.get("Ceinture") == "B":
                                 opp_name = opp_row.get("Nom", "Inconnu")
                     elif ceinture == "B":
-                        # adversaire = rouge sur la ligne précédente
                         if idx - 1 >= 0:
                             opp_row = df_hist.iloc[idx - 1]
                             if opp_row.get("Ceinture") == "R":
@@ -861,19 +894,18 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     vic_val = row.get("Victoire")
                     vic_str = victoire_to_str(vic_val)
 
-
-                    records.append({
-                        "Tour": row.get("N_Tour"),
-                        "Kata": row.get("Kata"),
-                        "Note": row.get("Note"),
-                        "vs.": opp_name,
-                        "Victoire": vic_str,
-                        "Competition": build_compet_label(row),
-                    })
+                    records.append(
+                        {
+                            "Tour": row.get("N_Tour"),
+                            "Kata": row.get("Kata"),
+                            "Note": row.get("Note"),
+                            "vs.": opp_name,
+                            "Victoire": vic_str,
+                            "Competition": build_compet_label(row),
+                        }
+                    )
 
                 hist_df = pd.DataFrame(records)
-
-                # Tri un minimum : Competition, Tour
                 hist_df = hist_df.sort_values(["Competition", "Tour"], na_position="last")
 
                 styled = hist_df.style.apply(
@@ -886,7 +918,6 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
         else:
             st.markdown("##### Historique des rencontres")
 
-            # On cherche des paires de lignes consécutives (un R, un B) avec les deux athlètes
             records = []
             n_rows = len(df_hist)
 
@@ -897,9 +928,7 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                 noms = {r1.get("Nom"), r2.get("Nom")}
                 ceintures = {str(r1.get("Ceinture")), str(r2.get("Ceinture"))}
 
-                # Condition : les deux athlètes + ceintures R/B dans la paire
                 if {selected_athlete, selected_compare_athlete}.issubset(noms) and {"R", "B"}.issubset(ceintures):
-                    # On prend toujours la ligne correspondant à l'athlète principal
                     if r1.get("Nom") == selected_athlete:
                         self_row = r1
                     else:
@@ -908,15 +937,16 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     vic_val = self_row.get("Victoire")
                     vic_str = victoire_to_str(vic_val)
 
-
-                    records.append({
-                        "Tour": self_row.get("N_Tour"),
-                        "Kata": self_row.get("Kata"),
-                        "Note": self_row.get("Note"),
-                        "Ceinture": self_row.get("Ceinture"),
-                        "Victoire": vic_str,
-                        "Competition": build_compet_label(self_row),
-                    })
+                    records.append(
+                        {
+                            "Tour": self_row.get("N_Tour"),
+                            "Kata": self_row.get("Kata"),
+                            "Note": self_row.get("Note"),
+                            "Ceinture": self_row.get("Ceinture"),
+                            "Victoire": vic_str,
+                            "Competition": build_compet_label(self_row),
+                        }
+                    )
 
             if not records:
                 st.info("Les deux athlètes ne se sont pas encore affrontés (ou pas avec les filtres actuels).")
@@ -929,4 +959,3 @@ def show_athlete_focus_tab(data: pd.DataFrame) -> None:
                     axis=0,
                 )
                 st.dataframe(styled_meet, width="stretch")
-
