@@ -10,6 +10,7 @@ from tabs.dataset_view import show_dataset_tab
 from tabs.athlete_focus import show_athlete_focus_tab
 from tabs.graphs import show_graphs_tab
 from tabs.acm import show_acm_tab
+from tabs.proba_victoire_kata import show_proba_victoire_kata_tab
 
 
 # =========================
@@ -106,11 +107,12 @@ def main():
     data = load_data(DATA_PATH)
 
     # Onglets principaux
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Dataset",
         "Focus Athlète",
         "Générateur de graphiques interactifs",
-        "Analyse des Correspondances Multiples (ACM)"
+        "Analyse des Correspondances Multiples (ACM)",
+        "Probabilité de victoire par kata"
     ])
 
     with tab1:
@@ -124,6 +126,9 @@ def main():
 
     with tab4:
         show_acm_tab(data)
+
+    with tab5:
+        show_proba_victoire_kata_tab(data)
 
     # Footer global
     add_footer()
