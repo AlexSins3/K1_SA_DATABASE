@@ -9,6 +9,7 @@ import streamlit as st
 from utils.ui import filter_panel_open, filter_panel_close
 from utils.interpretations import show_tab_help, show_chart_guide, interpret_score_differential, margin_color, _color_badge
 from utils.display import fmt_tour, fmt_df
+from utils.lang import t
 
 _TOUR_ORDER = [
     "T1", "T2", "T3",
@@ -81,7 +82,7 @@ def _build_match_margins(df: pd.DataFrame) -> pd.DataFrame:
     result["Marge"] = result["Marge_Signée"].abs()
     result["Vainqueur"] = np.where(
         result["Marge_Signée"] > 0, result["Red"],
-        np.where(result["Marge_Signée"] < 0, result["Blue"], "Égalité"),
+        np.where(result["Marge_Signée"] < 0, result["Blue"], "Draw"),
     )
     result["Type_Victoire"] = np.where(
         result["Marge"] > 1.5, "Dominante (>1.5)",
@@ -93,14 +94,14 @@ def _build_match_margins(df: pd.DataFrame) -> pd.DataFrame:
 
 @st.fragment
 def show_score_differential_tab(data: pd.DataFrame) -> None:
-    st.header("Score différentiel – Marge de victoire")
+    st.header(t("Score différentiel – Marge de victoire"))
     show_tab_help("score_differential")
 
     df = data.copy()
     matches = _build_match_margins(df)
 
     if matches.empty:
-        st.warning("Impossible de reconstruire des matchs avec notes.")
+        st.warning(t("Impossible de reconstruire des matchs avec notes."))
         return
 
     filters_col, content_col = st.columns([0.9, 2.4])
@@ -109,70 +110,78 @@ def show_score_differential_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
 
         sexe_opts = sorted(matches["Sexe"].dropna().unique().tolist()) if "Sexe" in matches.columns else []
-        sel_sexe_sd = st.selectbox("Sexe", ["Tous"] + sexe_opts, key="sdiff_sexe")
+        sel_sexe_sd = st.selectbox(t("Sexe"), [t("Tous")] + sexe_opts, key="sdiff_sexe")
 
         tours = sorted(matches["N_Tour"].unique().tolist())
-        sel_tours = st.multiselect("Tours", tours, default=tours, format_func=fmt_tour, key="sdiff_tours")
+        sel_tours = st.multiselect(t("Tours"), tours, default=tours, format_func=fmt_tour, key="sdiff_tours")
 
         filter_panel_close()
 
     with content_col:
         m = matches.copy()
-        if sel_sexe_sd != "Tous" and "Sexe" in m.columns:
+        if sel_sexe_sd != t("Tous") and "Sexe" in m.columns:
             m = m[m["Sexe"] == sel_sexe_sd]
         if sel_tours:
             m = m[m["N_Tour"].isin(sel_tours)]
 
         if m.empty:
-            st.info("Aucun match dans ce périmètre.")
+            st.info(t("Aucune donnée dans ce périmètre."))
             return
+
+        # Translate Type_Victoire at display time (not in cache)
+        _tv_map = {
+            "Serrée (<0.5)": t("Serrée (<0.5)"),
+            "Nette (0.5-1.5)": t("Nette (0.5-1.5)"),
+            "Dominante (>1.5)": t("Dominante (>1.5)"),
+        }
+        m["Type_Victoire"] = m["Type_Victoire"].map(_tv_map)
 
         # ── KPIs ──
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Matchs", len(m), help="Nombre total de matchs reconstruits dans le périmètre")
-        c2.metric("Marge moy.", f"{m['Marge'].mean():.2f}", help="Écart moyen entre gagnant et perdant. Plus c'est bas, plus les niveaux sont proches")
-        c3.metric("Marge médiane", f"{m['Marge'].median():.2f}", help="La marge \"du milieu\" : 50% des matchs ont une marge inférieure")
+        c1.metric(t("Matchs"), len(m), help=t("Nombre total de matchs reconstruits"))
+        c2.metric(t("Marge moy."), f"{m['Marge'].mean():.2f}", help=t("Écart moyen entre gagnant et perdant"))
+        c3.metric(t("Marge médiane"), f"{m['Marge'].median():.2f}", help=t("La marge du milieu"))
         pct_serres = (m['Marge'] < 0.5).mean()
-        c4.metric("% serrés (<0.5)", f"{pct_serres:.0%}", help="Proportion de matchs très disputés (<0.5 pts d'écart). Plus c'est haut, plus la compétition est relevée")
+        c4.metric(t("% serrés (<0.5)"), f"{pct_serres:.0%}", help=t("Proportion de matchs très disputés"))
 
         # ── Histogram of margins ──
-        st.subheader("Distribution de la marge de victoire")
+        st.subheader(t("Distribution de la marge de victoire"))
         show_chart_guide("histogram")
         st.markdown(interpret_score_differential(m), unsafe_allow_html=True)
 
         # Build K1/SA subsets
         m_k1 = m[m["Type_Compet"] == "K1"]
         m_sa = m[m["Type_Compet"] == "SA"]
-        _type_order = {"Type_Victoire": ["Serrée (<0.5)", "Nette (0.5-1.5)", "Dominante (>1.5)"]}
+        _type_order = {"Type_Victoire": [t("Serrée (<0.5)"), t("Nette (0.5-1.5)"), t("Dominante (>1.5)")]}
 
         col_k1, col_sa = st.columns(2)
         with col_k1:
             st.markdown("**Premier League (K1)**")
             if m_k1.empty:
-                st.info("Aucun match K1.")
+                st.info(t("Aucun match K1."))
             else:
                 fig_hist_k1 = px.histogram(
                     m_k1, x="Marge", nbins=30, color="Type_Victoire",
-                    title="Marge – K1",
-                    labels={"Marge": "Marge (|Note_R − Note_B|)"},
+                    title=t("Marge – K1"),
+                    labels={"Marge": t("Marge (|Note_R − Note_B|)")},
                     category_orders=_type_order,
                 )
                 st.plotly_chart(fig_hist_k1, use_container_width=True, key="sdiff_hist_k1")
         with col_sa:
             st.markdown("**Series A (SA)**")
             if m_sa.empty:
-                st.info("Aucun match SA.")
+                st.info(t("Aucun match SA."))
             else:
                 fig_hist_sa = px.histogram(
                     m_sa, x="Marge", nbins=30, color="Type_Victoire",
-                    title="Marge – SA",
-                    labels={"Marge": "Marge (|Note_R − Note_B|)"},
+                    title=t("Marge – SA"),
+                    labels={"Marge": t("Marge (|Note_R − Note_B|)")},
                     category_orders=_type_order,
                 )
                 st.plotly_chart(fig_hist_sa, use_container_width=True, key="sdiff_hist_sa")
 
         # ── Boxplot by tour ──
-        st.subheader("Marge par tour")
+        st.subheader(t("Marge par tour"))
         show_chart_guide("boxplot")
         col_k1b, col_sab = st.columns(2)
         with col_k1b:
@@ -181,29 +190,29 @@ def show_score_differential_tab(data: pd.DataFrame) -> None:
                 m_k1_chart = fmt_df(m_k1)
                 fig_box_k1 = px.box(
                     m_k1_chart, x="N_Tour", y="Marge", color="N_Tour",
-                    title="Marge par tour – K1",
-                    category_orders={"N_Tour": [fmt_tour(t) for t in sorted(m_k1["N_Tour"].unique(), key=lambda t: _TOUR_ORDER.index(t) if t in _TOUR_ORDER else 999)]},
+                    title=t("Marge par tour – K1"),
+                    category_orders={"N_Tour": [fmt_tour(t_val) for t_val in sorted(m_k1["N_Tour"].unique(), key=lambda t_val: _TOUR_ORDER.index(t_val) if t_val in _TOUR_ORDER else 999)]},
                 )
                 fig_box_k1.update_layout(showlegend=False)
                 st.plotly_chart(fig_box_k1, use_container_width=True, key="sdiff_box_k1")
             else:
-                st.info("Aucun match K1.")
+                st.info(t("Aucun match K1."))
         with col_sab:
             st.markdown("**SA**")
             if not m_sa.empty:
                 m_sa_chart = fmt_df(m_sa)
                 fig_box_sa = px.box(
                     m_sa_chart, x="N_Tour", y="Marge", color="N_Tour",
-                    title="Marge par tour – SA",
-                    category_orders={"N_Tour": [fmt_tour(t) for t in sorted(m_sa["N_Tour"].unique(), key=lambda t: _TOUR_ORDER.index(t) if t in _TOUR_ORDER else 999)]},
+                    title=t("Marge par tour – SA"),
+                    category_orders={"N_Tour": [fmt_tour(t_val) for t_val in sorted(m_sa["N_Tour"].unique(), key=lambda t_val: _TOUR_ORDER.index(t_val) if t_val in _TOUR_ORDER else 999)]},
                 )
                 fig_box_sa.update_layout(showlegend=False)
                 st.plotly_chart(fig_box_sa, use_container_width=True, key="sdiff_box_sa")
             else:
-                st.info("Aucun match SA.")
+                st.info(t("Aucun match SA."))
 
         # ── Type de victoire par tour ──
-        st.subheader("Type de victoire par tour")
+        st.subheader(t("Type de victoire par tour"))
         col_k1c, col_sac = st.columns(2)
         with col_k1c:
             st.markdown("**K1**")
@@ -213,11 +222,11 @@ def show_score_differential_tab(data: pd.DataFrame) -> None:
                 fig_bar_k1 = px.bar(
                     cross_k1_chart, x="N_Tour", y="Count", color="Type_Victoire",
                     barmode="group", category_orders=_type_order,
-                    title="Type de victoire par tour – K1",
+                    title=t("Type de victoire par tour – K1"),
                 )
                 st.plotly_chart(fig_bar_k1, use_container_width=True, key="sdiff_type_k1")
             else:
-                st.info("Aucun match K1.")
+                st.info(t("Aucun match K1."))
         with col_sac:
             st.markdown("**SA**")
             if not m_sa.empty:
@@ -226,14 +235,14 @@ def show_score_differential_tab(data: pd.DataFrame) -> None:
                 fig_bar_sa = px.bar(
                     cross_sa_chart, x="N_Tour", y="Count", color="Type_Victoire",
                     barmode="group", category_orders=_type_order,
-                    title="Type de victoire par tour – SA",
+                    title=t("Type de victoire par tour – SA"),
                 )
                 st.plotly_chart(fig_bar_sa, use_container_width=True, key="sdiff_type_sa")
             else:
-                st.info("Aucun match SA.")
+                st.info(t("Aucun match SA."))
 
         # ── Scatter: marge par compétition ──
-        st.subheader("Marge par compétition")
+        st.subheader(t("Marge par compétition"))
         col_k1d, col_sad = st.columns(2)
         with col_k1d:
             st.markdown("**K1**")
@@ -241,19 +250,19 @@ def show_score_differential_tab(data: pd.DataFrame) -> None:
                 comp_k1 = m_k1.groupby("Competition").agg(
                     Marge_Moy=("Marge", "mean"), Marge_Med=("Marge", "median"), Nb_Matchs=("Marge", "count"),
                 ).reset_index().sort_values("Marge_Moy", ascending=False)
-                fig_ck1 = px.bar(comp_k1, x="Competition", y="Marge_Moy", hover_data=["Marge_Med", "Nb_Matchs"], title="Marge moy. par compétition – K1")
+                fig_ck1 = px.bar(comp_k1, x="Competition", y="Marge_Moy", hover_data=["Marge_Med", "Nb_Matchs"], title=t("Marge moy. par compétition – K1"))
                 fig_ck1.update_layout(xaxis_tickangle=-45)
                 st.plotly_chart(fig_ck1, use_container_width=True, key="sdiff_comp_k1")
             else:
-                st.info("Aucun match K1.")
+                st.info(t("Aucun match K1."))
         with col_sad:
             st.markdown("**SA**")
             if not m_sa.empty:
                 comp_sa = m_sa.groupby("Competition").agg(
                     Marge_Moy=("Marge", "mean"), Marge_Med=("Marge", "median"), Nb_Matchs=("Marge", "count"),
                 ).reset_index().sort_values("Marge_Moy", ascending=False)
-                fig_csa = px.bar(comp_sa, x="Competition", y="Marge_Moy", hover_data=["Marge_Med", "Nb_Matchs"], title="Marge moy. par compétition – SA")
+                fig_csa = px.bar(comp_sa, x="Competition", y="Marge_Moy", hover_data=["Marge_Med", "Nb_Matchs"], title=t("Marge moy. par compétition – SA"))
                 fig_csa.update_layout(xaxis_tickangle=-45)
                 st.plotly_chart(fig_csa, use_container_width=True, key="sdiff_comp_sa")
             else:
-                st.info("Aucun match SA.")
+                st.info(t("Aucun match SA."))

@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from utils.ui import filter_panel_open, filter_panel_close
+from utils.lang import t
 
 
 @dataclass
@@ -29,12 +30,12 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
 
     df = data.copy()
     filter_panel_open()
-    st.markdown("### 🎯 Filtres")
+    st.markdown(t("### 🎯 Filtres"))
 
     # ── Type de compétition ──
-    type_compet_options = ["Tous", "Premier League (K1)", "Series A (SA)"]
+    type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
     selected_type_compet = st.radio(
-        "Type de compétition",
+        t("Type de compétition"),
         type_compet_options,
         key="athlete_type_compet",
     )
@@ -49,37 +50,37 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
     # ── Sexe ──
     sexe_options = sorted(data_athlete["Sexe"].dropna().unique().tolist())
     if not sexe_options:
-        st.warning("Aucun sexe disponible dans les données filtrées.")
+        st.warning(t("Aucun sexe disponible dans les données filtrées."))
         filter_panel_close()
         return None
 
-    selected_sexe = st.radio("Sexe des athlètes", sexe_options, key="athlete_sexe")
+    selected_sexe = st.radio(t("Sexe des athlètes"), sexe_options, key="athlete_sexe")
     data_athlete = data_athlete[data_athlete["Sexe"] == selected_sexe].copy()
 
     # ── Athlète principal ──
     athlete_names = sorted(data_athlete["Nom"].dropna().unique().tolist())
     if not athlete_names:
-        st.warning("Aucun athlète disponible avec les filtres sélectionnés.")
+        st.warning(t("Aucun athlète disponible avec les filtres sélectionnés."))
         filter_panel_close()
         return None
 
-    selected_athlete = st.selectbox("Athlète principal", athlete_names, index=None, placeholder="Choisir un athlète...", key="athlete_main_select")
+    selected_athlete = st.selectbox(t("Athlète principal"), athlete_names, index=None, placeholder=t("Choisir un athlète..."), key="athlete_main_select")
     if selected_athlete is None:
-        st.info("Sélectionnez un athlète pour afficher son profil.")
+        st.info(t("Sélectionnez un athlète pour afficher son profil."))
         filter_panel_close()
         return None
     athlete_data = data_athlete[data_athlete["Nom"] == selected_athlete].copy()
 
     # ── Athlète comparé ──
-    compare_options = ["Aucun"] + [n for n in athlete_names if n != selected_athlete]
-    selected_compare_athlete = st.selectbox("Comparer à", compare_options, key="athlete_compare_select")
+    compare_options = [t("Aucun")] + [n for n in athlete_names if n != selected_athlete]
+    selected_compare_athlete = st.selectbox(t("Comparer à"), compare_options, key="athlete_compare_select")
 
     compare_athlete_data = None
-    if selected_compare_athlete != "Aucun":
+    if selected_compare_athlete != t("Aucun"):
         compare_athlete_data = data_athlete[data_athlete["Nom"] == selected_compare_athlete].copy()
 
     st.markdown("---")
-    st.markdown("#### 🔎 Filtres avancés")
+    st.markdown(t("#### 🔎 Filtres avancés"))
 
     # ── Tours ──
     if compare_athlete_data is not None:
@@ -93,7 +94,7 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
     selected_tours = []
     if tour_options:
         selected_tours = st.multiselect(
-            "Tours (N_Tour)", options=tour_options, default=tour_options, key="athlete_tours_filter",
+            t("Tours (N_Tour)"), options=tour_options, default=tour_options, key="athlete_tours_filter",
         )
 
     # ── Compétitions ──
@@ -108,7 +109,7 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
     selected_competitions = []
     if competition_options:
         selected_competitions = st.multiselect(
-            "Compétitions", options=competition_options, default=competition_options, key="athlete_compet_filter",
+            t("Compétitions"), options=competition_options, default=competition_options, key="athlete_compet_filter",
         )
 
     filter_panel_close()

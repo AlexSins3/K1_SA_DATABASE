@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from utils.lang import t
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Tour display mapping
@@ -50,13 +52,14 @@ def fmt_athlete(name) -> str:
 
 
 def fmt_tour(tour) -> str:
-    """Map tour code to readable label for display."""
+    """Map tour code to readable label for display (translated)."""
     try:
         if tour is None or pd.isna(tour):
             return ""
     except (TypeError, ValueError):
         pass
-    return TOUR_DISPLAY.get(str(tour).strip(), str(tour).replace("_", " "))
+    label = TOUR_DISPLAY.get(str(tour).strip(), str(tour).replace("_", " "))
+    return t(label)
 
 
 def fmt_underscore(text) -> str:

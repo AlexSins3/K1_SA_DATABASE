@@ -8,11 +8,12 @@ import streamlit as st
 from utils.ui import highlight_victory_series
 from utils.data_helpers import build_compet_label, victoire_to_str
 from utils.display import fmt_tour
+from utils.lang import t
 
 
 def render_history(state):
     """Render section 6 – Historique (tours for single athlete, encounters for pair)."""
-    st.subheader("Historique")
+    st.subheader(t("Historique"))
     s = state
 
     df_hist = s.full_data.copy()
@@ -42,11 +43,11 @@ def render_history(state):
 # ── Single athlete: tour-by-tour history ──────────────────────────────────────
 
 def _render_single_history(df_hist, athlete_name):
-    st.markdown("##### Historique des tours")
+    st.markdown(f"##### {t('Historique des tours')}")
     df_a = df_hist[df_hist["Nom"] == athlete_name].copy()
 
     if df_a.empty:
-        st.info("Aucun historique trouvé pour cet athlète avec les filtres actuels.")
+        st.info(t("Aucun historique trouvé pour cet athlète avec les filtres actuels."))
         return
 
     records = []

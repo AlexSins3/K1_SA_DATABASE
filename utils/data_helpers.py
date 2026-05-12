@@ -3,6 +3,8 @@
 import numpy as np
 import pandas as pd
 
+from utils.lang import t
+
 
 # ── Victoire conversion (single source of truth) ─────────────────────────────
 
@@ -37,13 +39,13 @@ def victoire_to_bool(v):
 
 
 def victoire_to_str(v) -> str:
-    """Return ``'Oui'`` / ``'Non'`` / ``'Inconnu'``."""
+    """Return ``'Oui'`` / ``'Non'`` / ``'Inconnu'`` (translated)."""
     b = victoire_to_bool(v)
     if b is True:
-        return "Oui"
+        return t("Oui")
     if b is False:
-        return "Non"
-    return "Inconnu"
+        return t("Non")
+    return t("Inconnu")
 
 
 def victoire_to_int(v):

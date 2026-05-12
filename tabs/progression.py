@@ -10,11 +10,12 @@ from utils.ui import filter_panel_open, filter_panel_close
 from utils.data_helpers import safe_mode
 from utils.interpretations import show_tab_help, show_chart_guide, interpret_progression, std_color, _color_badge
 from utils.display import fmt_tour
+from utils.lang import t
 
 
 @st.fragment
 def show_progression_tab(data: pd.DataFrame) -> None:
-    st.header("Progression temporelle des notes")
+    st.header(t("Progression temporelle des notes"))
     show_tab_help("progression")
 
     df = data.copy()
@@ -28,50 +29,50 @@ def show_progression_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
 
         # Type compet filter
-        type_options = ["Tous", "K1", "SA"]
-        sel_type = st.radio("Type compétition", type_options, key="prog_type")
+        type_options = [t("Tous"), "K1", "SA"]
+        sel_type = st.radio(t("Type compétition"), type_options, key="prog_type")
         df_scope = df.copy()
-        if sel_type != "Tous":
+        if sel_type != t("Tous"):
             df_scope = df_scope[df_scope["Type_Compet"] == sel_type]
 
         # Sexe filter
         sexes = sorted(df_scope["Sexe"].dropna().unique().tolist())
-        sel_sexe = st.selectbox("Sexe", ["Tous"] + sexes, key="prog_sexe")
-        if sel_sexe != "Tous":
+        sel_sexe = st.selectbox(t("Sexe"), [t("Tous")] + sexes, key="prog_sexe")
+        if sel_sexe != t("Tous"):
             df_scope = df_scope[df_scope["Sexe"] == sel_sexe]
 
         # Tour filter
         all_tours = sorted(df_scope["N_Tour"].dropna().astype(str).unique().tolist())
-        sel_tours = st.multiselect("Tours", all_tours, default=all_tours, format_func=fmt_tour, key="prog_tours")
+        sel_tours = st.multiselect(t("Tours"), all_tours, default=all_tours, format_func=fmt_tour, key="prog_tours")
         if sel_tours:
             df_scope = df_scope[df_scope["N_Tour"].astype(str).isin(sel_tours)]
 
         athletes = sorted(df_scope["Nom"].dropna().unique().tolist())
         if not athletes:
-            st.warning("Aucun athlète disponible.")
+            st.warning(t("Aucun athlète disponible."))
             filter_panel_close()
             return
 
         sel_athletes = st.multiselect(
-            "Athlète(s) à comparer",
+            t("Athlète(s) à comparer"),
             athletes,
             default=[],
             max_selections=5,
             key="prog_athletes",
         )
 
-        show_rolling = st.checkbox("Moyenne mobile (3 compétitions)", value=True, key="prog_rolling")
+        show_rolling = st.checkbox(t("Moyenne mobile (3 compétitions)"), value=True, key="prog_rolling")
 
         filter_panel_close()
 
     with content_col:
         if not sel_athletes:
-            st.info("Sélectionnez au moins un athlète dans le panneau de filtres à gauche.")
+            st.info(t("Sélectionnez au moins un athlète dans le panneau de filtres à gauche."))
             return
 
         sub = df_scope[df_scope["Nom"].isin(sel_athletes)].dropna(subset=["Note"]).copy()
         if sub.empty:
-            st.warning("Aucune donnée avec notes pour ces athlètes.")
+            st.warning(t("Aucune donnée avec notes pour ces athlètes."))
             return
 
         # Build a chronological order: Year + Competition
@@ -104,8 +105,8 @@ def show_progression_tab(data: pd.DataFrame) -> None:
             agg, x="Compet_Label", y="Note_Moy", color="Nom",
             markers=True,
             hover_data=["Note_Max", "Nb_Passages"],
-            title="Évolution de la note moyenne par compétition",
-            labels={"Note_Moy": "Note moyenne", "Compet_Label": "Compétition"},
+            title=t("Évolution de la note moyenne par compétition"),
+            labels={"Note_Moy": t("Note moyenne"), "Compet_Label": t("Compétition")},
             category_orders={"Compet_Label": compet_order},
         )
 
@@ -132,36 +133,36 @@ def show_progression_tab(data: pd.DataFrame) -> None:
         st.plotly_chart(fig, use_container_width=True, key="prog_line")
 
         # ── Stats summary ──
-        st.subheader("Résumé par athlète")
+        st.subheader(t("Résumé par athlète"))
         summary = []
         for nom in sel_athletes:
             d_a = sub[sub["Nom"] == nom]
             if d_a.empty:
                 continue
             summary.append({
-                "Athlète": nom,
-                "Compétitions": d_a["Competition"].nunique(),
+                t("Athlète"): nom,
+                t("Compétitions"): d_a["Competition"].nunique(),
                 "Passages": len(d_a),
-                "Note moy.": round(d_a["Note"].mean(), 2),
+                t("Note moy."): round(d_a["Note"].mean(), 2),
                 "Note max": round(d_a["Note"].max(), 2),
                 "Note min": round(d_a["Note"].min(), 2),
-                "Écart-type": round(d_a["Note"].std(), 2) if len(d_a) > 1 else 0.0,
-                "Tendance": "↗" if len(d_a) >= 3 and d_a["Note"].iloc[-3:].mean() > d_a["Note"].iloc[:3].mean() else "↘" if len(d_a) >= 3 else "—",
+                t("Écart-type"): round(d_a["Note"].std(), 2) if len(d_a) > 1 else 0.0,
+                t("Tendance"): "↗" if len(d_a) >= 3 and d_a["Note"].iloc[-3:].mean() > d_a["Note"].iloc[:3].mean() else "↘" if len(d_a) >= 3 else "—",
             })
         if summary:
             # Interprétation dynamique
             st.markdown("---")
-            st.markdown("#### 💡 Interprétation")
+            st.markdown(t("#### 💡 Interprétation"))
             st.markdown(interpret_progression(summary), unsafe_allow_html=True)
             st.dataframe(pd.DataFrame(summary), use_container_width=True)
 
         # ── Box plot per athlete ──
         if len(sel_athletes) >= 2:
-            st.subheader("Distribution des notes")
+            st.subheader(t("Distribution des notes"))
             show_chart_guide("boxplot")
             fig_box = px.box(
                 sub, x="Nom", y="Note", color="Nom",
-                title="Distribution des notes par athlète",
+                title=t("Distribution des notes par athlète"),
                 points="outliers",
             )
             st.plotly_chart(fig_box, use_container_width=True, key="prog_box")

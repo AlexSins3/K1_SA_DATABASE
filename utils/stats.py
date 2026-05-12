@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats as sp_stats
 
+from utils.lang import t
+
 
 def fmt_p(p_value: float) -> str:
     """Format a p-value to 3 decimals, with a ``< 0.001`` threshold."""
@@ -23,20 +25,20 @@ def normality_test_auto(sample: pd.Series) -> dict:
             "test_name": "Normalité",
             "stat": np.nan,
             "p": np.nan,
-            "comment": "Effectif insuffisant pour un test de normalité (n < 3).",
+            "comment": t("Effectif insuffisant pour un test de normalité (n < 3)."),
         }
 
     if n < 20:
         stat, p = sp_stats.shapiro(sample)
         test_name = "Shapiro-Wilk"
-        comment = (
+        comment = t(
             "Test adapté aux petits échantillons (n < 20). "
             "Il est assez sensible aux déviations."
         )
     else:
         stat, p = sp_stats.normaltest(sample)
         test_name = "D'Agostino K²"
-        comment = (
+        comment = t(
             "Test basé sur l'asymétrie et l'aplatissement, adapté aux échantillons ≥ 20. "
             "Avec des échantillons très grands, il peut détecter de très faibles déviations."
         )
@@ -59,10 +61,10 @@ def oneway_test_auto(data: pd.DataFrame, y_col: str, x_group: str) -> dict:
 
     if len(groups) < 2:
         return {
-            "test_name": "Comparaison de moyennes",
+            "test_name": t("Comparaison de moyennes"),
             "stat": np.nan,
             "p": np.nan,
-            "comment": "Pas assez de groupes avec au moins 3 observations.",
+            "comment": t("Pas assez de groupes avec au moins 3 observations."),
         }
 
     min_n = min(group_sizes)
@@ -70,10 +72,10 @@ def oneway_test_auto(data: pd.DataFrame, y_col: str, x_group: str) -> dict:
     if min_n >= 30:
         stat, p = sp_stats.f_oneway(*groups)
         return {
-            "test_name": "ANOVA (grand échantillon, TCL)",
+            "test_name": "ANOVA (TCL)",
             "stat": stat,
             "p": p,
-            "comment": (
+            "comment": t(
                 "Tous les groupes ont n ≥ 30. ANOVA est robuste via le théorème central limite, "
                 "même si la normalité n'est pas parfaite."
             ),
@@ -93,10 +95,10 @@ def oneway_test_auto(data: pd.DataFrame, y_col: str, x_group: str) -> dict:
     if all_normal:
         stat, p = sp_stats.f_oneway(*groups)
         return {
-            "test_name": "ANOVA (normalité approximative)",
+            "test_name": "ANOVA",
             "stat": stat,
             "p": p,
-            "comment": (
+            "comment": t(
                 "Taille d'échantillon modérée et normalité non rejetée dans chaque groupe : "
                 "ANOVA est appropriée."
             ),
@@ -107,7 +109,7 @@ def oneway_test_auto(data: pd.DataFrame, y_col: str, x_group: str) -> dict:
             "test_name": "Kruskal-Wallis",
             "stat": stat,
             "p": p,
-            "comment": (
+            "comment": t(
                 "Normalité incertaine ou rejetée dans au moins un groupe et/ou effectif faible : "
                 "on utilise le test non-paramétrique de Kruskal-Wallis."
             ),
@@ -120,10 +122,10 @@ def chi2_or_fisher_auto(data: pd.DataFrame, x_cat: str, y_cat: str) -> dict:
     contingency = pd.crosstab(data[x_cat], data[y_cat])
     if contingency.empty:
         return {
-            "test_name": "Test d'indépendance",
+            "test_name": t("Test d'indépendance"),
             "stat": np.nan,
             "p": np.nan,
-            "comment": "Table de contingence vide, impossible de tester.",
+            "comment": t("Table de contingence vide, impossible de tester."),
             "dof": None,
         }
 
@@ -132,10 +134,10 @@ def chi2_or_fisher_auto(data: pd.DataFrame, x_cat: str, y_cat: str) -> dict:
     if contingency.shape == (2, 2) and (expected < 5).any():
         oddsratio, p = sp_stats.fisher_exact(contingency)
         return {
-            "test_name": "Fisher exact (2x2, faibles effectifs)",
+            "test_name": "Fisher exact",
             "stat": oddsratio,
             "p": p,
-            "comment": (
+            "comment": t(
                 "Tableau 2x2 avec au moins une fréquence attendue < 5 : "
                 "le test exact de Fisher est plus approprié que le Chi²."
             ),
@@ -143,10 +145,10 @@ def chi2_or_fisher_auto(data: pd.DataFrame, x_cat: str, y_cat: str) -> dict:
         }
     else:
         return {
-            "test_name": "Chi² d'indépendance",
+            "test_name": "Chi²",
             "stat": chi2_stat,
             "p": chi2_p,
-            "comment": "Conditions du Chi² vérifiées (fréquences attendues suffisantes).",
+            "comment": t("Conditions du Chi² vérifiées (fréquences attendues suffisantes)."),
             "dof": dof,
         }
 
@@ -158,7 +160,7 @@ def correlation_auto(x: pd.Series, y: pd.Series) -> dict:
     if df.shape[0] < 3:
         return {
             "tests": [],
-            "comment": "Effectif insuffisant pour un test de corrélation (n < 3).",
+            "comment": t("Effectif insuffisant pour un test de corrélation (n < 3)."),
         }
 
     x_vals = df.iloc[:, 0]
@@ -179,7 +181,7 @@ def correlation_auto(x: pd.Series, y: pd.Series) -> dict:
                 "name": "Pearson",
                 "r": r,
                 "p": p,
-                "comment": (
+                "comment": t(
                     "Petits effectifs (n < 20) et normalité non rejetée pour X et Y : "
                     "corrélation de Pearson appropriée."
                 ),
@@ -190,7 +192,7 @@ def correlation_auto(x: pd.Series, y: pd.Series) -> dict:
                 "name": "Spearman",
                 "r": rho,
                 "p": p,
-                "comment": (
+                "comment": t(
                     "Petits effectifs (n < 20) et normalité incertaine/rejetée : "
                     "corrélation de Spearman (non-paramétrique) préférable."
                 ),
@@ -201,7 +203,7 @@ def correlation_auto(x: pd.Series, y: pd.Series) -> dict:
             "name": "Pearson",
             "r": r_pearson,
             "p": p_pearson,
-            "comment": (
+            "comment": t(
                 "Effectif n ≥ 20 : la corrélation de Pearson est robuste même en cas de légère "
                 "déviation à la normalité (TCL)."
             ),
@@ -212,7 +214,7 @@ def correlation_auto(x: pd.Series, y: pd.Series) -> dict:
             "name": "Spearman",
             "r": rho_spearman,
             "p": p_spearman,
-            "comment": (
+            "comment": t(
                 "Spearman mesure la corrélation monotone basée sur les rangs, "
                 "utile en cas de relations non linéaires ou de valeurs extrêmes."
             ),

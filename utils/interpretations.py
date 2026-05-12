@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from utils.lang import t, get_lang
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Indicateurs colorés (vert / orange / rouge)
@@ -27,7 +29,7 @@ def colored_metric(label: str, value, color: str, help_text: str | None = None):
 
 
 def _interpret_color(color: str) -> str:
-    return {"green": "✔ Bon", "orange": "~ Moyen", "red": "✘ Faible"}.get(color, "")
+    return {"green": t("✔ Bon"), "orange": t("~ Moyen"), "red": t("✘ Faible")}.get(color, "")
 
 
 # ── Seuils pour win rate ──
@@ -96,8 +98,10 @@ def proba_bar_html(p: float) -> str:
 def show_tab_help(tab_name: str):
     """Display a help expander at the top of a tab."""
     help_content = _TAB_HELP.get(tab_name)
+    if get_lang() == "en":
+        help_content = _TAB_HELP_EN.get(tab_name, help_content)
     if help_content:
-        with st.expander("💡 Comment lire cet onglet ?", expanded=False):
+        with st.expander(t("💡 Comment lire cet onglet ?"), expanded=False):
             st.markdown(help_content)
 
 
@@ -304,8 +308,10 @@ _TAB_HELP = {
 def show_chart_guide(chart_type: str):
     """Show a small expander explaining how to read a chart type."""
     guide = _CHART_GUIDES.get(chart_type)
+    if get_lang() == "en":
+        guide = _CHART_GUIDES_EN.get(chart_type, guide)
     if guide:
-        with st.expander(f"📖 Comment lire ce graphique ?", expanded=False):
+        with st.expander(t("📖 Comment lire ce graphique ?"), expanded=False):
             st.markdown(guide)
 
 
@@ -382,28 +388,50 @@ def interpret_score_differential(m_df) -> str:
     n_matchs = len(m_df)
 
     lines = []
-    if pct_serres > 60:
-        lines.append(
-            f"🟢 **{pct_serres:.0f}% des matchs sont serrés** (<0.5 pts d'écart) "
-            f"→ les niveaux sont très homogènes, chaque détail compte."
-        )
-    elif pct_serres > 40:
-        lines.append(
-            f"🟠 **{pct_serres:.0f}% des matchs sont serrés** "
-            f"→ un mélange de matchs disputés et de victoires nettes."
-        )
+    if get_lang() == "en":
+        if pct_serres > 60:
+            lines.append(
+                f"🟢 **{pct_serres:.0f}% of matches are close** (<0.5 pts gap) "
+                f"→ levels are very homogeneous, every detail counts."
+            )
+        elif pct_serres > 40:
+            lines.append(
+                f"🟠 **{pct_serres:.0f}% of matches are close** "
+                f"→ a mix of contested matches and clear victories."
+            )
+        else:
+            lines.append(
+                f"🔴 Only **{pct_serres:.0f}% of close matches** "
+                f"→ skill gaps are significant, victories are often clear."
+            )
+        if marge_moy < 0.5:
+            lines.append(f"Average margin of **{marge_moy:.2f} pts** → highly contested competition.")
+        elif marge_moy < 1.0:
+            lines.append(f"Average margin of **{marge_moy:.2f} pts** → moderate gaps.")
+        else:
+            lines.append(f"Average margin of **{marge_moy:.2f} pts** → significant gaps between competitors.")
     else:
-        lines.append(
-            f"🔴 Seulement **{pct_serres:.0f}% de matchs serrés** "
-            f"→ les écarts de niveau sont importants, les victoires sont souvent nettes."
-        )
-
-    if marge_moy < 0.5:
-        lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → compétition très disputée.")
-    elif marge_moy < 1.0:
-        lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts modérés.")
-    else:
-        lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts importants entre les compétiteurs.")
+        if pct_serres > 60:
+            lines.append(
+                f"🟢 **{pct_serres:.0f}% des matchs sont serrés** (<0.5 pts d'écart) "
+                f"→ les niveaux sont très homogènes, chaque détail compte."
+            )
+        elif pct_serres > 40:
+            lines.append(
+                f"🟠 **{pct_serres:.0f}% des matchs sont serrés** "
+                f"→ un mélange de matchs disputés et de victoires nettes."
+            )
+        else:
+            lines.append(
+                f"🔴 Seulement **{pct_serres:.0f}% de matchs serrés** "
+                f"→ les écarts de niveau sont importants, les victoires sont souvent nettes."
+            )
+        if marge_moy < 0.5:
+            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → compétition très disputée.")
+        elif marge_moy < 1.0:
+            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts modérés.")
+        else:
+            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts importants entre les compétiteurs.")
 
     return "\n\n".join(lines)
 
@@ -414,17 +442,28 @@ def interpret_diversity(ag_df) -> str:
         return ""
 
     lines = []
-    for profil in ["Spécialiste (1-2)", "Modéré (3-4)", "Polyvalent (5+)"]:
-        sub = ag_df[ag_df["Profil"] == profil]
-        if not sub.empty:
-            wr = sub["Win_Rate"].mean()
-            n = len(sub)
-            color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
-            lines.append(f"{color} **{profil}** ({n} athlètes) : win rate moyen de **{wr:.1f}%**")
-
-    if len(lines) >= 2:
-        lines.append("")
-        lines.append("*Comparez les profils pour voir si la spécialisation ou la polyvalence paie dans ce contexte.*")
+    if get_lang() == "en":
+        for profil in ag_df["Profil"].unique():
+            sub = ag_df[ag_df["Profil"] == profil]
+            if not sub.empty:
+                wr = sub["Win_Rate"].mean()
+                n = len(sub)
+                color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
+                lines.append(f"{color} **{profil}** ({n} athletes): avg. win rate of **{wr:.1f}%**")
+        if len(lines) >= 2:
+            lines.append("")
+            lines.append("*Compare profiles to see whether specialization or versatility pays off in this context.*")
+    else:
+        for profil in ["Spécialiste (1-2)", "Modéré (3-4)", "Polyvalent (5+)"]:
+            sub = ag_df[ag_df["Profil"] == profil]
+            if not sub.empty:
+                wr = sub["Win_Rate"].mean()
+                n = len(sub)
+                color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
+                lines.append(f"{color} **{profil}** ({n} athlètes) : win rate moyen de **{wr:.1f}%**")
+        if len(lines) >= 2:
+            lines.append("")
+            lines.append("*Comparez les profils pour voir si la spécialisation ou la polyvalence paie dans ce contexte.*")
 
     return "\n\n".join(lines)
 
@@ -432,25 +471,44 @@ def interpret_diversity(ag_df) -> str:
 def interpret_progression(summary_list: list[dict]) -> str:
     """Generate interpretation for athlete progression."""
     lines = []
-    for s in summary_list:
-        nom = s["Athlète"]
-        tendance = s.get("Tendance", "—")
-        std = s.get("Écart-type", 0)
-        note_moy = s.get("Note moy.", 0)
+    if get_lang() == "en":
+        for s in summary_list:
+            nom = s.get("Athlete", s.get("Athlète", s.get(t("Athlète"), "?")))
+            tendance = s.get("Trend", s.get("Tendance", s.get(t("Tendance"), "—")))
+            std = s.get("Standard deviation", s.get("Écart-type", s.get(t("Écart-type"), 0)))
 
-        if tendance == "↗":
-            lines.append(f"🟢 **{nom}** est en **phase ascendante** (tendance ↗)")
-        elif tendance == "↘":
-            lines.append(f"🔴 **{nom}** est en **régression** (tendance ↘)")
-        else:
-            lines.append(f"🟠 **{nom}** : données insuffisantes pour dégager une tendance")
+            if tendance == "↗":
+                lines.append(f"🟢 **{nom}** is in an **ascending phase** (trend ↗)")
+            elif tendance == "↘":
+                lines.append(f"🔴 **{nom}** is **declining** (trend ↘)")
+            else:
+                lines.append(f"🟠 **{nom}**: insufficient data to determine a trend")
 
-        if std <= 0.5:
-            lines.append(f"   → Très régulier (écart-type: {std:.2f})")
-        elif std <= 1.2:
-            lines.append(f"   → Régularité moyenne (écart-type: {std:.2f})")
-        else:
-            lines.append(f"   → Performances irrégulières (écart-type: {std:.2f})")
+            if std <= 0.5:
+                lines.append(f"   → Very consistent (std dev: {std:.2f})")
+            elif std <= 1.2:
+                lines.append(f"   → Average consistency (std dev: {std:.2f})")
+            else:
+                lines.append(f"   → Inconsistent performances (std dev: {std:.2f})")
+    else:
+        for s in summary_list:
+            nom = s.get("Athlète", s.get(t("Athlète"), "?"))
+            tendance = s.get("Tendance", s.get(t("Tendance"), "—"))
+            std = s.get("Écart-type", s.get(t("Écart-type"), 0))
+
+            if tendance == "↗":
+                lines.append(f"🟢 **{nom}** est en **phase ascendante** (tendance ↗)")
+            elif tendance == "↘":
+                lines.append(f"🔴 **{nom}** est en **régression** (tendance ↘)")
+            else:
+                lines.append(f"🟠 **{nom}** : données insuffisantes pour dégager une tendance")
+
+            if std <= 0.5:
+                lines.append(f"   → Très régulier (écart-type: {std:.2f})")
+            elif std <= 1.2:
+                lines.append(f"   → Régularité moyenne (écart-type: {std:.2f})")
+            else:
+                lines.append(f"   → Performances irrégulières (écart-type: {std:.2f})")
 
     return "\n\n".join(lines)
 
@@ -469,31 +527,54 @@ def interpret_tour_advancement(tc_df, filter_label: str) -> str:
         pct_final = 0
 
     lines = []
-    if pct_final < 15:
-        lines.append(
-            f"🔴 Seuls **{pct_final:.0f}%** des participants atteignent le dernier tour "
-            f"→ la sélection est très sévère. Passer les poules est déjà un excellent résultat."
-        )
-    elif pct_final < 30:
-        lines.append(
-            f"🟠 **{pct_final:.0f}%** des participants atteignent le dernier tour "
-            f"→ une sélection modérée."
-        )
+    if get_lang() == "en":
+        if pct_final < 15:
+            lines.append(
+                f"🔴 Only **{pct_final:.0f}%** of participants reach the last round "
+                f"→ the selection is very severe. Getting past pools is already an excellent result."
+            )
+        elif pct_final < 30:
+            lines.append(
+                f"🟠 **{pct_final:.0f}%** of participants reach the last round "
+                f"→ moderate selection."
+            )
+        else:
+            lines.append(
+                f"🟢 **{pct_final:.0f}%** of participants reach the last round "
+                f"→ relatively little elimination."
+            )
+        notes = tc_df.dropna(subset=["Note moy."])
+        if len(notes) >= 3:
+            first_note = notes.iloc[0]["Note moy."]
+            last_note = notes.iloc[-1]["Note moy."]
+            if last_note > first_note + 0.3:
+                lines.append("📈 Scores **increase** with rounds → the best performers advance logically.")
+            elif abs(last_note - first_note) <= 0.3:
+                lines.append("➡️ Scores remain **stable** across rounds → the level is homogeneous at all stages.")
     else:
-        lines.append(
-            f"🟢 **{pct_final:.0f}%** des participants atteignent le dernier tour "
-            f"→ relativement peu d'élimination."
-        )
-
-    # Check if notes increase with tour
-    notes = tc_df.dropna(subset=["Note moy."])
-    if len(notes) >= 3:
-        first_note = notes.iloc[0]["Note moy."]
-        last_note = notes.iloc[-1]["Note moy."]
-        if last_note > first_note + 0.3:
-            lines.append("📈 Les notes **augmentent** avec les tours → les meilleurs passeurs avancent logiquement.")
-        elif abs(last_note - first_note) <= 0.3:
-            lines.append("➡️ Les notes restent **stables** entre les tours → le niveau est homogène à tous les stades.")
+        if pct_final < 15:
+            lines.append(
+                f"🔴 Seuls **{pct_final:.0f}%** des participants atteignent le dernier tour "
+                f"→ la sélection est très sévère. Passer les poules est déjà un excellent résultat."
+            )
+        elif pct_final < 30:
+            lines.append(
+                f"🟠 **{pct_final:.0f}%** des participants atteignent le dernier tour "
+                f"→ une sélection modérée."
+            )
+        else:
+            lines.append(
+                f"🟢 **{pct_final:.0f}%** des participants atteignent le dernier tour "
+                f"→ relativement peu d'élimination."
+            )
+        notes = tc_df.dropna(subset=["Note moy."])
+        if len(notes) >= 3:
+            first_note = notes.iloc[0]["Note moy."]
+            last_note = notes.iloc[-1]["Note moy."]
+            if last_note > first_note + 0.3:
+                lines.append("📈 Les notes **augmentent** avec les tours → les meilleurs passeurs avancent logiquement.")
+            elif abs(last_note - first_note) <= 0.3:
+                lines.append("➡️ Les notes restent **stables** entre les tours → le niveau est homogène à tous les stades.")
 
     return "\n\n".join(lines)
 
@@ -504,14 +585,24 @@ def interpret_continental(grp_df, geo_col: str) -> str:
         return ""
 
     top3 = grp_df.nlargest(3, "Win_Rate")
-    lines = [f"**Top 3 {geo_col}s par win rate :**"]
-    for _, row in top3.iterrows():
-        wr = row["Win_Rate"]
-        color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
-        lines.append(
-            f"{color} **{row[geo_col]}** : {wr:.1f}% de victoires "
-            f"({int(row['Athlètes'])} athlètes, note moy. {row['Note_Moy']:.2f})"
-        )
+    if get_lang() == "en":
+        lines = [f"**Top 3 {geo_col}s by win rate:**"]
+        for _, row in top3.iterrows():
+            wr = row["Win_Rate"]
+            color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
+            lines.append(
+                f"{color} **{row[geo_col]}**: {wr:.1f}% victories "
+                f"({int(row['Athlètes'])} athletes, avg. score {row['Note_Moy']:.2f})"
+            )
+    else:
+        lines = [f"**Top 3 {geo_col}s par win rate :**"]
+        for _, row in top3.iterrows():
+            wr = row["Win_Rate"]
+            color = "🟢" if wr >= 55 else "🟠" if wr >= 40 else "🔴"
+            lines.append(
+                f"{color} **{row[geo_col]}** : {wr:.1f}% de victoires "
+                f"({int(row['Athlètes'])} athlètes, note moy. {row['Note_Moy']:.2f})"
+            )
 
     return "\n\n".join(lines)
 
@@ -549,5 +640,246 @@ GLOSSAIRE = """
 def show_glossaire():
     """Show the glossary in the sidebar."""
     with st.sidebar:
-        with st.expander("📖 Glossaire des termes", expanded=False):
-            st.markdown(GLOSSAIRE)
+        with st.expander(t("📖 Glossaire des termes"), expanded=False):
+            st.markdown(GLOSSAIRE if get_lang() == "fr" else GLOSSAIRE_EN)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# English translations
+# ═══════════════════════════════════════════════════════════════════════════════
+
+GLOSSAIRE_EN = """
+### 📖 Glossary – Terms used in this application
+
+| Term | Explanation |
+|------|-------------|
+| **Win rate** | Percentage of matches won. Above 55% = very good international level. |
+| **Average score** | Average scores obtained during performances. |
+| **Standard deviation** | Measures consistency: **small = consistent**, **large = inconsistent**. |
+| **Median** | The "middle" score: half the scores are above, the other half below. More reliable than the mean when extreme values exist. |
+| **Victory margin** | Point difference between winner and loser in a match. |
+| **Trend ↗ / ↘** | Compares the last 3 competitions to the first 3 to see if the athlete is improving or declining. |
+| **Moving average** | Average calculated over the last 3 competitions. Smooths variations to show the underlying trend. |
+| **Specialist profile** | Athlete using 1-2 katas → deep mastery but predictable. |
+| **Moderate profile** | Athlete using 3-4 katas → good mastery/versatility balance. |
+| **Versatile profile** | Athlete using 5+ katas → less predictable but may dilute preparation. |
+| **MCA** | Visual map showing which katas, rounds and results "go together". Close points are related. |
+| **p-value** | Indicates if a result is due to chance. **< 0.05 = significant** (not due to chance), **> 0.05 = no evidence**. |
+| **Shrinkage** | Technique that pulls probabilities toward 50% when data is scarce, to avoid overly extreme predictions. |
+| **Confidence (0-1)** | Prediction reliability index. Close to 1 = lots of data, close to 0 = little data. |
+| **Ranking** | World ranking of the athlete (lower number = better ranking). |
+| **Funnel** | Funnel chart: shows how many athletes remain at each competition round. |
+| **K1 / Premier League** | The highest WKF competition level. |
+| **SA / Series A** | Second WKF competition level. |
+"""
+
+_TAB_HELP_EN = {
+    "dataset": """
+**Purpose:** Explore and filter the raw karate competition database.
+
+**How to use:**
+- Use the **filters on the left** to target a competition type, year, gender, etc.
+- The **4 indicators at the top** summarize the filtered data (row count, athletes, competitions, distinct katas).
+- You can **download** the filtered table as CSV for analysis in Excel.
+
+**Coach tip:** Use the athlete search to quickly find a competitor's appearances.
+""",
+
+    "athlete_focus": """
+**Purpose:** In-depth analysis of an athlete's profile and performances (or compare two athletes).
+
+**What you'll find here:**
+- 📋 **Athlete card**: gender, age, ranking, nationality, style
+- 📊 **Max round per competition**: how far the athlete went in each competition
+- 🥋 **Katas used**: which katas the athlete performed and how often
+- 🕸️ **Radar by round**: average score at each competition phase → large and regular shape = stable performances
+- 🕸️ **Radar by kata**: average score per kata → identifies strong and weak katas
+- 📜 **History**: list of matches with opponents and results
+
+**Coach tip:** Compare two athletes in the same weight category to prepare a confrontation strategy.
+""",
+
+    "progression": """
+**Purpose:** Track an athlete's score evolution across competitions.
+
+**How to read the chart:**
+- 📈 **Rising line** = the athlete is improving
+- 📉 **Falling line** = the athlete is declining
+- 🔀 **Zigzag line** = inconsistent performances
+- The **dashed line** (moving average) smooths variations to show the underlying trend
+
+**Summary table:**
+- **Avg. score**: overall average performance
+- **Std. dev.**: consistency → **lower = more consistent**
+- **Trend ↗/↘**: compares the last 3 competitions to the first 3
+
+**Coach tip:** Compare 2-3 athletes of the same gender to see who is on an upward trend before a competition.
+""",
+
+    "score_differential": """
+**Purpose:** Understand score gaps between opponents during matches.
+
+**3 types of victory:**
+- 🟢 **Close (<0.5 pts)**: both athletes were very close in level
+- 🟠 **Clear (0.5-1.5 pts)**: a clear advantage but not overwhelming
+- 🔴 **Dominant (>1.5 pts)**: one athlete clearly superior
+
+**How to read the indicators:**
+- **Avg. margin**: average gap between winner and loser → lower = more homogeneous levels
+- **% close**: proportion of highly contested matches → higher = more competitive
+
+**Coach tip:** A high % of close matches means every detail counts: kata preparation, strategy, stress management.
+""",
+
+    "continental": """
+**Purpose:** Compare performances by geographic area (nation, continent or world region).
+
+**How to read the charts:**
+- **Win Rate bar chart**: which countries/continents win the most → tall bars = dominant areas
+- **Color gradient**: reflects the average score → warm color = good scores
+- **Boxplot**: score distribution by area → tall box = wide level variety in that area
+
+**Coach tip:** Identify emerging nations (good win rate but few appearances) and areas to watch.
+""",
+
+    "tour_advancement": """
+**Purpose:** Visualize how many athletes are eliminated at each competition phase.
+
+**How to read the funnel:**
+- Top = **all participants** entering the competition
+- Each level = a successive round
+- Bottom = the **finalists**
+- Percentages show the remaining share compared to the start
+- The faster the funnel narrows, the **more severe the selection**
+
+**Coach tip:** Use "By athlete" mode to see a competitor's typical path. "By kata" mode reveals which katas most often lead to finals.
+""",
+
+    "kata_diversity": """
+**Purpose:** Analyze whether athletes using many different katas perform better than specialists.
+
+**3 profiles:**
+- 🎯 **Specialist (1-2 katas)**: deep mastery but predictable
+- ⚖️ **Moderate (3-4 katas)**: good balance between mastery and versatility
+- 🌐 **Versatile (5+ katas)**: less predictable but may dilute preparation
+
+**How to read the scatter plot:**
+- Each **dot = an athlete**
+- **X axis**: number of different katas used
+- **Y axis**: win percentage
+- **Dot size**: number of appearances (bigger = more experience)
+- **Color**: average score (green = good, red = weak)
+
+**Coach tip:** Check if your athletes are in the optimal zone (sufficient diversity without being too scattered).
+""",
+
+    "graphs": """
+**Purpose:** Create custom charts by crossing any variables in the database.
+
+**How to use:**
+1. Choose a **Y variable** (the measure you're interested in)
+2. Optionally an **X variable** (to compare groups)
+3. The tool automatically selects the right chart type and statistical test
+
+**Understanding statistical results:**
+- **p-value < 0.05** → the observed difference or relationship is **significant** (not due to chance)
+- **p-value > 0.05** → no sufficient evidence of a real difference
+
+**Coach tip:** Try Score (Y) × Style (X) to see if Shitoryu have different scores from Shotokan.
+""",
+
+    "acm": """
+**Purpose:** See which katas are associated with victory or defeat on a visual map.
+
+**How to read the map (in simple terms):**
+- Each **dot** represents a category (a kata, a round, or victory/defeat)
+- **Close** dots tend to appear **together** in the same matches
+- If a kata is **close to "Victory = True"** → it's a kata that often wins in this context
+- If a kata is **close to "Victory = False"** → it's a kata that often loses
+
+**What the axes mean:**
+- Both axes summarize the associations between all variables as best as possible
+- The **% of captured information** indicates the quality of the summary (higher = better)
+
+**Coach tip:** Filter by gender and competition type, then spot katas close to "Victory = True" → these are the most effective katas in this context.
+""",
+
+    "proba_victoire": """
+**Purpose:** Estimate the win probability of athlete A against opponent B according to the chosen kata.
+
+**How it works (simplified):**
+- The model analyzes **22 historical criteria**: scores, ranking, head-to-head, recent momentum, age, favorite kata, experience, etc.
+- It calculates a **win probability** for each kata A could perform
+- A **confidence index** (0 to 1) indicates reliability: close to 1 = lots of data, close to 0 = little data → probability is pulled toward 50%
+
+**How to read results:**
+- 🟢 **> 60%**: A is the favorite with this kata
+- 🟠 **45-60%**: open match, hard to predict
+- 🔴 **< 45%**: A is at a disadvantage with this kata
+
+**Warning:** The model is based on **history**. It cannot predict current form, injuries, stress, or a surprise strategy from an opponent.
+
+**Coach tip:** Use "Top 3 katas" for a quick recommendation. Always compare with your knowledge of the athlete and opponent.
+""",
+}
+
+_CHART_GUIDES_EN = {
+    "boxplot": """
+**Boxplot (box and whiskers):**
+- The **box** contains 50% of the values (from 25th to 75th percentile)
+- The **line in the middle** = the **median** (the "middle" value)
+- The **whiskers** extend to normal extreme values
+- **Isolated dots** beyond = exceptional performances or counter-performances
+- The **smaller** the box, the **more consistent** the performances
+""",
+
+    "radar": """
+**Radar chart (spider web):**
+- Each branch = a criterion (round or kata)
+- The **larger** the shape, the **higher** the scores
+- A **regular** shape (circle) = homogeneous performances across all criteria
+- A **flattened** shape on one side = weakness in that category
+- When comparing two athletes, look where the shapes cross
+""",
+
+    "funnel": """
+**Funnel:**
+- Top = **all participants**
+- Each level = a successive competition round
+- Bottom = the **finalists** (survivors)
+- Percentages show the remaining share compared to the start
+- The faster the funnel narrows, the **tougher the selection**
+""",
+
+    "heatmap": """
+**Heatmap:**
+- Each **cell** represents a combination (e.g. country × round)
+- **Warm colors** (dark/green) = good values
+- **Cool colors** (light/red) = low values
+- Look for **rows or columns** with many dark cells = areas of strength
+""",
+
+    "scatter": """
+**Scatter plot:**
+- Each **dot** = an individual (athlete, match, etc.)
+- **Position** shows values on both axes
+- Look for **trends**: if dots form a rising line, the two variables are related
+- **Isolated dots** outside the group deserve attention
+""",
+
+    "histogram": """
+**Histogram:**
+- **Bars** show how many values fall in each interval
+- The tallest bar = the most frequent interval
+- The **red dashed line** = the mean
+- The **green dashed line** = the median
+- If bars form a symmetric bell = "normal" distribution (classic)
+""",
+
+    "bar": """
+**Bar chart:**
+- The **height** of each bar = the measured value
+- Bars are sorted for easy comparison
+- The **color gradient** (if present) adds extra information (e.g. average score)
+""",
+}

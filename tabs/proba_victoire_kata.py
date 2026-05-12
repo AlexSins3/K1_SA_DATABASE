@@ -17,6 +17,7 @@ from utils.ui import filter_panel_open, filter_panel_close
 from utils.data_helpers import victoire_to_int, safe_mode
 from utils.interpretations import show_tab_help, proba_bar_html, proba_color, _color_badge
 from utils.display import fmt_tour, format_display_df
+from utils.lang import t, get_lang
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -834,17 +835,27 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
 
 @st.fragment
 def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
-    st.header("Probabilité de victoire par kata")
+    st.header(t("Probabilité de victoire par kata"))
     show_tab_help("proba_victoire")
 
-    st.markdown(
-        """
+    if get_lang() == "en":
+        st.markdown(
+            """
+**Warning**
+- Results are **probabilities**, not absolute truth.
+- Anti-bias: if A/B have little history, probability is **pulled toward 50%** (shrinkage).
+- Model v3 integrates **22 features**: scores, ranking, head-to-head, temporal trend, recent momentum, age, favourite kata, consistency, experience, kata diversity, opponent familiarity, geographic advantage and round.
+            """
+        )
+    else:
+        st.markdown(
+            """
 **Avertissement**
 - Les résultats sont des **probabilités**, pas une vérité absolue.
 - Anti-biais : si A/B ont peu d'historique, on **ramène la proba vers 50%** (shrinkage).
 - Le modèle v3 intègre **22 features** : notes, ranking, head-to-head, tendance temporelle, momentum récent, âge, kata favori, consistance, expérience, diversité kata, familiarité adversaire, avantage géographique et tour.
-        """
-    )
+            """
+        )
 
     df = data.copy()
 
@@ -863,10 +874,10 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
     with filters_col:
         filter_panel_open()
-        st.markdown("### 🎯 Paramètres")
+        st.markdown(t("### 🎯 Paramètres"))
 
-        type_compet_options = ["Tous", "Premier League (K1)", "Series A (SA)"]
-        selected_type_compet = st.radio("Type de compétition", type_compet_options, key="proba_type_compet")
+        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
+        selected_type_compet = st.radio(t("Type de compétition"), type_compet_options, key="proba_type_compet")
 
         df_scope = df.copy()
         if selected_type_compet == "Premier League (K1)":
@@ -876,11 +887,11 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         athlete_names = sorted(df_scope["Nom"].dropna().unique().tolist())
         if not athlete_names:
-            st.warning("Aucun athlète disponible avec ces filtres.")
+            st.warning(t("Aucun athlète disponible avec ces filtres."))
             filter_panel_close()
             return
 
-        nom_a = st.selectbox("Athlète A", athlete_names, key="proba_nom_a")
+        nom_a = st.selectbox(t("Athlète A"), athlete_names, key="proba_nom_a")
 
         sexe_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Sexe"], default=None)
         if sexe_a is not None:
@@ -891,48 +902,55 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
             athlete_b_names = sorted(df_scope[df_scope["Nom"] != nom_a]["Nom"].dropna().unique().tolist())
 
         if not athlete_b_names:
-            st.warning("Aucun adversaire compatible (même sexe) trouvé dans ce périmètre.")
+            st.warning(t("Aucun adversaire compatible trouvé."))
             filter_panel_close()
             return
 
-        nom_b = st.selectbox("Athlète B", athlete_b_names, key="proba_nom_b")
+        nom_b = st.selectbox(t("Athlète B (adversaire)"), athlete_b_names, key="proba_nom_b")
 
         tour_options = sorted(df_scope["N_Tour"].dropna().astype(str).unique().tolist())
         if not tour_options:
-            st.warning("Aucun tour (N_Tour) disponible dans ce périmètre.")
+            st.warning(t("Aucun tour disponible."))
             filter_panel_close()
             return
 
-        n_tour = st.selectbox("Tour (N_Tour)", tour_options, format_func=fmt_tour, key="proba_tour")
+        n_tour = st.selectbox(t("Tour simulé"), tour_options, format_func=fmt_tour, key="proba_tour")
 
         style_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Style"], default=None)
         style_b = safe_mode(df_scope[df_scope["Nom"] == nom_b]["Style"], default=None)
 
         st.markdown("---")
-        st.markdown("#### 🥋 Katas testés (pour A)")
+        st.markdown(t("#### 🥋 Katas testés (pour A)"))
 
         katas_style = _get_katas_of_style_in_scope(df_scope, style_a)
         katas_effectues_a = sorted(df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist())
 
         katas_selectionnes = st.multiselect(
-            "Katas à tester", options=katas_style,
+            t("Katas à tester"), options=katas_style,
             default=katas_effectues_a if katas_effectues_a else katas_style,
             key="proba_katas",
         )
 
         st.markdown("---")
-        st.markdown("#### 🏆 Top 3 katas à faire")
-        st.caption(
-            "Basé sur l'adversaire et le tour.\n\n"
-            "- Si A a **≥ 4 matchs** dans le scope ⇒ Top 3 parmi ses **katas déjà joués**.\n"
-            "- Sinon ⇒ Top 3 parmi **tous les katas du style**."
-        )
-        run_top3 = st.button("🏆 Proposer le Top 3", key="proba_top3")
+        st.markdown(t("#### 🏆 Top 3 katas à faire"))
+        if get_lang() == "en":
+            st.caption(
+                "Based on the opponent and round.\n\n"
+                "- If A has **≥ 4 matches** in scope ⇒ Top 3 from their **already played katas**.\n"
+                "- Otherwise ⇒ Top 3 from **all style katas**."
+            )
+        else:
+            st.caption(
+                "Basé sur l'adversaire et le tour.\n\n"
+                "- Si A a **≥ 4 matchs** dans le scope ⇒ Top 3 parmi ses **katas déjà joués**.\n"
+                "- Sinon ⇒ Top 3 parmi **tous les katas du style**."
+            )
+        run_top3 = st.button(t("🏆 Top 3"), key="proba_top3")
 
         filter_panel_close()
 
     with content_col:
-        st.subheader("Comparaison sélectionnée")
+        st.subheader(t("Comparaison sélectionnée"))
 
         # Quick stats cards
         c1, c2 = st.columns(2)
@@ -940,25 +958,25 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
             a_stats_row = ag.athlete_stats[ag.athlete_stats["Nom"] == nom_a]
             if not a_stats_row.empty:
                 r = a_stats_row.iloc[0]
-                st.metric("A – Note moy.", f"{r['Note_Mean']:.1f}" if pd.notna(r["Note_Mean"]) else "?",
-                          help="Note moyenne de l'athlète A sur tous ses passages")
+                st.metric(t("A – Note moy."), f"{r['Note_Mean']:.1f}" if pd.notna(r["Note_Mean"]) else "?",
+                          help=t("Note moyenne de l'athlète A sur tous ses passages"))
                 st.caption(f"Win rate : {r['WinRate_Smoothed']:.0%} ({int(r['Wins'])}/{int(r['Total'])})")
-                st.caption(f"Ranking moy. : {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
+                st.caption(f"{t('Ranking moy.')} : {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
             else:
-                st.metric("A – Note moy.", "?")
+                st.metric(t("A – Note moy."), "?")
         with c2:
             b_stats_row = ag.athlete_stats[ag.athlete_stats["Nom"] == nom_b]
             if not b_stats_row.empty:
                 r = b_stats_row.iloc[0]
-                st.metric("B – Note moy.", f"{r['Note_Mean']:.1f}" if pd.notna(r["Note_Mean"]) else "?",
-                          help="Note moyenne de l'athlète B sur tous ses passages")
+                st.metric(t("B – Note moy."), f"{r['Note_Mean']:.1f}" if pd.notna(r["Note_Mean"]) else "?",
+                          help=t("Note moyenne de l'athlète B sur tous ses passages"))
                 st.caption(f"Win rate : {r['WinRate_Smoothed']:.0%} ({int(r['Wins'])}/{int(r['Total'])})")
-                st.caption(f"Ranking moy. : {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
+                st.caption(f"{t('Ranking moy.')} : {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
             else:
-                st.metric("B – Note moy.", "?")
+                st.metric(t("B – Note moy."), "?")
 
         st.markdown(
-            f"**Tour :** {n_tour} · **Périmètre :** {selected_type_compet}"
+            f"**{t('Tour')} :** {n_tour} · **{t('Périmètre')} :** {selected_type_compet}"
         )
 
         matches_scope = _build_paired_matches(df_scope)
@@ -972,60 +990,60 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
         )
 
         st.markdown(
-            f"📌 Historique scope : **A={base_feats['a_matches']} matchs**, **B={base_feats['b_matches']} matchs**"
+            f"📌 {t('Historique scope')} : **A={base_feats['a_matches']} {t('matchs')}**, **B={base_feats['b_matches']} {t('matchs')}**"
         )
 
         # Model performance
-        with st.expander("📊 Performance du modèle (cross-validation)"):
+        with st.expander(t("📊 Performance du modèle (cross-validation)")):
             if len(cv_accuracy) > 0:
                 st.write(f"**Accuracy (CV)** : {cv_accuracy.mean():.3f} ± {cv_accuracy.std():.3f}")
             else:
-                st.write("Accuracy (CV) : données insuffisantes")
+                st.write(t("Accuracy (CV) : données insuffisantes"))
             if len(cv_auc) > 0:
                 st.write(f"**AUC (CV)** : {cv_auc.mean():.3f} ± {cv_auc.std():.3f}")
             else:
-                st.write("AUC (CV) : données insuffisantes")
+                st.write(t("AUC (CV) : données insuffisantes"))
 
-            st.markdown("##### Feature importances (coefficients)")
+            st.markdown(t("##### Feature importances (coefficients)"))
             _FEATURE_LABELS = {
-                "Same_Nation": "Même nationalité",
-                "Same_Style": "Même style de kata",
-                "Is_K1": "Compétition K1 (vs SA)",
-                "H2H_Adv": "Avantage face-à-face historique",
-                "WinRate_Adv": "Avantage win rate global",
-                "A_Kata_WinRate_C": "Win rate de A avec ce kata",
-                "B_Weakness_C": "Faiblesse de B face à ce kata",
-                "Kata_Tour_C": "Efficacité du kata dans ce tour",
-                "Kata_Effect": "Effet résiduel du kata",
-                "Note_Diff": "Différence de notes (A-B)",
-                "Ranking_Adv": "Avantage au classement mondial",
-                "Log_A_Kata_N": "Expérience de A avec ce kata",
-                "A_Kata_Note_C": "Note de A avec ce kata (vs moyenne)",
-                "Note_Trend_Diff": "Différence de tendance de notes",
-                "Momentum_Diff": "Différence de dynamique récente",
-                "Age_Diff": "Différence d'âge",
-                "Is_Fav_Kata_A": "A joue son kata favori",
-                "Note_Std_Diff": "Différence de régularité",
-                "Exp_Diff": "Différence d'expérience (nb matchs)",
-                "Kata_Diversity_Diff": "Différence de diversité kata",
-                "B_Seen_Kata": "B a déjà vu ce kata",
-                "Is_Home": "A joue à domicile (continent)",
-                "Tour_Rank": "Phase de compétition (poule → finale)",
+                "Same_Nation": t("Même nationalité"),
+                "Same_Style": t("Même style de kata"),
+                "Is_K1": t("Compétition K1 (vs SA)"),
+                "H2H_Adv": t("Avantage face-à-face historique"),
+                "WinRate_Adv": t("Avantage win rate global"),
+                "A_Kata_WinRate_C": t("Win rate de A avec ce kata"),
+                "B_Weakness_C": t("Faiblesse de B face à ce kata"),
+                "Kata_Tour_C": t("Efficacité du kata dans ce tour"),
+                "Kata_Effect": t("Effet résiduel du kata"),
+                "Note_Diff": t("Différence de notes (A-B)"),
+                "Ranking_Adv": t("Avantage au classement mondial"),
+                "Log_A_Kata_N": t("Expérience de A avec ce kata"),
+                "A_Kata_Note_C": t("Note de A avec ce kata (vs moyenne)"),
+                "Note_Trend_Diff": t("Différence de tendance de notes"),
+                "Momentum_Diff": t("Différence de dynamique récente"),
+                "Age_Diff": t("Différence d'âge"),
+                "Is_Fav_Kata_A": t("A joue son kata favori"),
+                "Note_Std_Diff": t("Différence de régularité"),
+                "Exp_Diff": t("Différence d'expérience (nb matchs)"),
+                "Kata_Diversity_Diff": t("Différence de diversité kata"),
+                "B_Seen_Kata": t("B a déjà vu ce kata"),
+                "Is_Home": t("A joue à domicile (continent)"),
+                "Tour_Rank": t("Phase de compétition (poule → finale)"),
             }
             try:
                 coefs = model.named_steps["clf"].coef_[0]
                 fi_df = pd.DataFrame({"Feature": FEATURE_COLS, "Coefficient": coefs})
-                fi_df["Explication"] = fi_df["Feature"].map(_FEATURE_LABELS).fillna(fi_df["Feature"])
+                fi_df[t("Explication")] = fi_df["Feature"].map(_FEATURE_LABELS).fillna(fi_df["Feature"])
                 fi_df["Abs"] = fi_df["Coefficient"].abs()
                 fi_df = fi_df.sort_values("Abs", ascending=False).drop(columns=["Abs"])
-                st.dataframe(format_display_df(fi_df[["Explication", "Feature", "Coefficient"]]), use_container_width=True)
+                st.dataframe(format_display_df(fi_df[[t("Explication"), "Feature", "Coefficient"]]), use_container_width=True)
             except Exception:
-                st.write("Impossible d'extraire les coefficients.")
+                st.write(t("Impossible d'extraire les coefficients."))
 
         if not katas_selectionnes:
-            st.info("Sélectionne au moins un kata à tester.")
+            st.info(t("Sélectionne au moins un kata à tester."))
 
-        run_manual = st.button("Calculer les probabilités (katas sélectionnés)", key="proba_run")
+        run_manual = st.button(t("Calculer les probabilités (katas sélectionnés)"), key="proba_run")
 
         if run_manual and katas_selectionnes:
             res_df = _predict_for_katas(
@@ -1034,10 +1052,10 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 base_feats=base_feats,
             )
 
-            st.subheader(f"Résultats – {nom_a} vs {nom_b} (tour: {fmt_tour(n_tour)})")
+            st.subheader(f"{t('Résultats')} – {nom_a} vs {nom_b} ({t('tour')}: {fmt_tour(n_tour)})")
 
             # Barres de probabilité colorées pour le Top 3
-            st.markdown("##### Top 3 (sur ta sélection)")
+            st.markdown(f"##### Top 3 ({t('sur ta sélection')})")
             for _, row in res_df.head(3).iterrows():
                 p = row["Probabilité de victoire (%)"]
                 col_kata, col_bar, col_conf = st.columns([1, 2, 1])
@@ -1048,9 +1066,9 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 with col_conf:
                     conf = row["Confiance (0-1)"]
                     conf_color = "green" if conf >= 0.6 else "orange" if conf >= 0.3 else "red"
-                    st.markdown(f"Confiance: {_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
+                    st.markdown(f"{t('Confiance')}: {_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
 
-            st.markdown("##### Détail complet")
+            st.markdown(f"##### {t('Détail complet')}")
             st.dataframe(res_df, use_container_width=True)
 
             fig = px.bar(
@@ -1059,40 +1077,40 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 color_continuous_scale=["#dc3545", "#ffc107", "#28a745"],
                 range_color=[30, 70],
                 hover_data=["Confiance (0-1)", "Diff. notes (A-B)", "Nb occ. (A, kata)"],
-                title="Probabilité de victoire estimée par kata (A) – sélection",
+                title=t("Probabilité de victoire estimée par kata (A) – sélection"),
             )
             st.plotly_chart(fig, use_container_width=True, key="proba_kata_bar_manual")
 
-            st.info(
+            st.info(t(
                 "✅ Modèle v3 — 22 features : notes, ranking, H2H, tendance temporelle, "
                 "momentum, âge, kata favori, consistance, expérience, diversité, "
                 "familiarité adversaire, avantage géo, tour."
-            )
+            ))
 
         if run_top3:
             a_match_count = int(base_feats["a_matches"])
             if a_match_count >= 4:
                 candidates = sorted(set(df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist()))
-                source = f"katas déjà joués par A (A a {a_match_count} matchs)"
+                source = t("katas déjà joués par A") + f" (A: {a_match_count} {t('matchs')})"
             else:
                 candidates = list(map(str, katas_style))
-                source = f"tous les katas du style (A n'a que {a_match_count} matchs)"
+                source = t("tous les katas du style") + f" (A: {a_match_count} {t('matchs')})"
 
             if not candidates:
-                st.warning("Impossible de proposer un Top 3 : aucun kata candidat trouvé.")
+                st.warning(t("Impossible de proposer un Top 3 : aucun kata candidat trouvé."))
             else:
                 res_df_top = _predict_for_katas(
                     model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
                     n_tour=str(n_tour), katas=candidates, base_feats=base_feats,
                 )
 
-                st.subheader("🏆 Top 3 katas à faire")
-                st.caption(f"Source candidats : **{source}**")
+                st.subheader(t("🏆 Top 3 katas à faire"))
+                st.caption(f"{t('Source candidats')} : **{source}**")
                 st.dataframe(res_df_top.head(3), use_container_width=True)
 
                 fig2 = px.bar(
                     res_df_top.head(10), x="Kata", y="Probabilité de victoire (%)",
                     hover_data=["Confiance (0-1)", "Diff. notes (A-B)", "Nb occ. (A, kata)"],
-                    title="Top katas recommandés (Top 10 affiché)",
+                    title=t("Top katas recommandés (Top 10 affiché)"),
                 )
                 st.plotly_chart(fig2, use_container_width=True, key="proba_kata_bar_top3")

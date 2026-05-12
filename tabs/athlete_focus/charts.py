@@ -16,6 +16,7 @@ from constants.tours import (
 from utils.ui import athlete_label_html
 from utils.data_helpers import build_compet_label
 from utils.interpretations import show_chart_guide
+from utils.lang import t
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -26,13 +27,13 @@ def _athlete_info_block(df: pd.DataFrame, name: str):
     """Render a markdown block with key athlete metadata."""
     st.markdown(athlete_label_html(name), unsafe_allow_html=True)
 
-    sexe = df["Sexe"].mode().iloc[0] if not df["Sexe"].mode().empty else "Non spécifié"
-    nation = df["Nation"].mode().iloc[0] if not df["Nation"].mode().empty else "Non spécifié"
-    style = df["Style"].mode().iloc[0] if not df["Style"].mode().empty else "Non spécifié"
+    sexe = df["Sexe"].mode().iloc[0] if not df["Sexe"].mode().empty else t("Non spécifié")
+    nation = df["Nation"].mode().iloc[0] if not df["Nation"].mode().empty else t("Non spécifié")
+    style = df["Style"].mode().iloc[0] if not df["Style"].mode().empty else t("Non spécifié")
 
     age_series = df["Age"].dropna()
     if age_series.empty:
-        age_display = "Non spécifié"
+        age_display = t("Non spécifié")
     else:
         try:
             age_display = f"{float(age_series.iloc[-1]):.1f} ans"
@@ -41,7 +42,7 @@ def _athlete_info_block(df: pd.DataFrame, name: str):
 
     ranking_series = df["Ranking"].dropna()
     if ranking_series.empty:
-        ranking_str = "Non spécifié"
+        ranking_str = t("Non spécifié")
     else:
         try:
             ranking_str = str(int(ranking_series.iloc[-1]))
@@ -60,7 +61,7 @@ def _athlete_info_block(df: pd.DataFrame, name: str):
 
 
 def render_athlete_info(state):
-    st.subheader("Informations Athlète(s)")
+    st.subheader(t("Informations Athlète(s)"))
     col_left, col_sep, col_right = st.columns([1, 0.05, 1])
 
     with col_left:
@@ -75,7 +76,7 @@ def render_athlete_info(state):
             _athlete_info_block(state.compare_athlete_data, state.selected_compare_athlete)
         else:
             st.markdown(
-                "<p style='font-size:12px;color:gray;'>Aucun athlète comparé sélectionné</p>",
+                f"<p style='font-size:12px;color:gray;'>{t('Aucun athlète comparé sélectionné')}</p>",
                 unsafe_allow_html=True,
             )
 
@@ -113,7 +114,7 @@ def _compute_max_tour_by_compet(df_src, athlete_name, type_compet):
 
 def _plot_max_tour(df_plot, title, key_suffix):
     if df_plot.empty:
-        st.info(f"Aucune donnée {title} pour les athlètes sélectionnés.")
+        st.info(f"{t('Aucune donnée')} {title} {t('pour les athlètes sélectionnés.')}")
         return
 
     cat_order = df_plot.sort_values(
@@ -130,7 +131,7 @@ def _plot_max_tour(df_plot, title, key_suffix):
         df_plot,
         x="Competition_Label", y="Level", color="Athlète",
         barmode="group", text="Tour_Label",
-        labels={"Competition_Label": "Compétition", "Level": "Tour maximal"},
+        labels={"Competition_Label": t("Compétition"), "Level": t("Tour maximal")},
         category_orders={"Competition_Label": list(cat_order)},
     )
     fig.update_traces(textposition="outside")
@@ -139,7 +140,7 @@ def _plot_max_tour(df_plot, title, key_suffix):
 
 
 def render_max_tour(state):
-    st.subheader("Tour maximal atteint par compétition")
+    st.subheader(t("Tour maximal atteint par compétition"))
     col_left, col_sep, col_right = st.columns([1, 0.05, 1])
     s = state
     df = s.full_data
@@ -179,21 +180,21 @@ def _kata_histogram(df_source, tours, athlete_name, key_suffix):
     kata_counts = kata_counts[kata_counts["Nombre"] > 0]
 
     if kata_counts.empty:
-        st.warning("Aucun Kata à afficher pour les tours sélectionnés.")
+        st.warning(t("Aucun Kata à afficher pour les tours sélectionnés."))
         return
 
     fig = px.bar(
         kata_counts, x="Kata", y="Nombre",
-        title="Nombre de Katas effectués",
-        labels={"Nombre": "Nombre de fois"}, text="Nombre",
+        title=t("Nombre de Katas effectués"),
+        labels={"Nombre": t("Nombre de fois")}, text="Nombre",
     )
-    fig.update_layout(xaxis_title="Kata", yaxis_title="Nombre de fois")
+    fig.update_layout(xaxis_title="Kata", yaxis_title=t("Nombre de fois"))
     fig.update_traces(textposition="outside")
     st.plotly_chart(fig, use_container_width=True, key=key_suffix)
 
 
 def render_kata_histogram(state):
-    st.subheader("Histogramme des Katas effectués")
+    st.subheader(t("Histogramme des Katas effectués"))
     s = state
     col_left, col_sep, col_right = st.columns([1, 0.05, 1])
 
@@ -215,7 +216,7 @@ def render_kata_histogram(state):
             )
         else:
             st.markdown(
-                "<p style='font-size:12px;color:gray;'>Aucun athlète comparé sélectionné</p>",
+                f"<p style='font-size:12px;color:gray;'>{t('Aucun athlète comparé sélectionné')}</p>",
                 unsafe_allow_html=True,
             )
 
@@ -246,7 +247,7 @@ def _compute_avg_notes_by_tour(df_source, athlete_name, selected_competitions):
 
 
 def render_kiviat_tour(state):
-    st.subheader("Moyenne des notes par Tour")
+    st.subheader(t("Moyenne des notes par Tour"))
     show_chart_guide("radar")
     s = state
 
@@ -256,7 +257,7 @@ def render_kiviat_tour(state):
         df_kiviat = pd.concat([df_kiviat, df_comp], ignore_index=True)
 
     if df_kiviat.empty:
-        st.info("Aucune note disponible pour construire le diagramme par tour.")
+        st.info(t("Aucune note disponible pour construire le diagramme par tour."))
         return
 
     # Dynamic range
@@ -271,7 +272,7 @@ def render_kiviat_tour(state):
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[note_min, note_max])),
         showlegend=True,
-        title="Moyenne des notes par Tour (tours réellement disputés)",
+        title=t("Moyenne des notes par tour (tours réellement disputés)"),
     )
     st.plotly_chart(
         fig, use_container_width=True,
@@ -308,7 +309,7 @@ def _compute_avg_notes_by_kata(df_source, athlete_name, kata_list, selected_comp
 
 
 def render_kiviat_kata(state):
-    st.subheader("Moyenne des notes par Kata")
+    st.subheader(t("Moyenne des notes par Kata"))
     show_chart_guide("radar")
     s = state
 
@@ -326,7 +327,7 @@ def render_kiviat_kata(state):
         df_kk = pd.concat([df_kk, df_kk_comp], ignore_index=True)
 
     if df_kk.empty:
-        st.info("Aucune note disponible pour construire le diagramme par Kata.")
+        st.info(t("Aucune note disponible pour construire le diagramme par Kata."))
         return
 
     df_kk["Kata"] = pd.Categorical(df_kk["Kata"], categories=kata_list, ordered=True)
@@ -356,7 +357,7 @@ def render_kiviat_kata(state):
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[note_min, note_max])),
         showlegend=True,
-        title="Moyenne des notes par Kata",
+        title=t("Moyenne des notes par Kata"),
     )
     st.plotly_chart(
         fig, use_container_width=True,

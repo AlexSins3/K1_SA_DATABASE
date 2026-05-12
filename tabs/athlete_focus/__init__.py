@@ -12,11 +12,12 @@ from tabs.athlete_focus.charts import (
 )
 from tabs.athlete_focus.history import render_history
 from utils.interpretations import show_tab_help
+from utils.lang import t
 
 
 @st.fragment
 def show_athlete_focus_tab(data):
-    st.header("Focus Athlète")
+    st.header(t("Focus Athlète"))
     show_tab_help("athlete_focus")
 
     filters_col, content_col = st.columns([0.9, 2.4])
@@ -29,7 +30,7 @@ def show_athlete_focus_tab(data):
 
     with content_col:
         if state.athlete_data.empty:
-            st.warning("Aucune donnée pour l'athlète sélectionné.")
+            st.warning(t("Aucune donnée pour l'athlète sélectionné."))
             return
 
         render_athlete_info(state)

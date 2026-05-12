@@ -11,6 +11,7 @@ from utils.ui import filter_panel_open, filter_panel_close
 from utils.data_helpers import safe_mode
 from utils.interpretations import show_tab_help, show_chart_guide, interpret_tour_advancement
 from utils.display import fmt_tour, format_display_df, fmt_df
+from utils.lang import t
 
 
 # Logical tour ordering (earliest → latest)
@@ -37,7 +38,7 @@ def _tour_rank(tour) -> int:
 
 @st.fragment
 def show_tour_advancement_tab(data: pd.DataFrame) -> None:
-    st.header("Avancement par tour – Funnel d'élimination")
+    st.header(t("Avancement par tour – Funnel d'élimination"))
     show_tab_help("tour_advancement")
 
     df = data.copy()
@@ -53,43 +54,43 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
 
         sexes = sorted(df["Sexe"].dropna().unique().tolist())
-        sel_sexe = st.selectbox("Sexe", ["Tous"] + sexes, key="adv_sexe")
+        sel_sexe = st.selectbox(t("Sexe"), [t("Tous")] + sexes, key="adv_sexe")
         d = df.copy()
-        if sel_sexe != "Tous":
+        if sel_sexe != t("Tous"):
             d = d[d["Sexe"] == sel_sexe]
 
-        mode = st.radio("Analyse", ["Global", "Par athlète", "Par kata", "Par style"], key="adv_mode")
+        mode = st.radio(t("Analyse"), [t("Global"), t("Par athlète"), t("Par kata"), t("Par style")], key="adv_mode")
 
         sel_athlete = None
         sel_kata = None
         sel_style = None
-        if mode == "Par athlète":
+        if mode == t("Par athlète"):
             athletes = sorted(d["Nom"].dropna().unique().tolist())
-            sel_athlete = st.selectbox("Athlète", athletes, key="adv_athlete") if athletes else None
-        elif mode == "Par kata":
+            sel_athlete = st.selectbox(t("Athlète"), athletes, key="adv_athlete") if athletes else None
+        elif mode == t("Par kata"):
             katas = sorted(d["Kata"].dropna().unique().tolist())
-            sel_kata = st.selectbox("Kata", katas, key="adv_kata") if katas else None
-        elif mode == "Par style":
+            sel_kata = st.selectbox(t("Kata"), katas, key="adv_kata") if katas else None
+        elif mode == t("Par style"):
             styles = sorted(d["Style"].dropna().unique().tolist())
-            sel_style = st.selectbox("Style", styles, key="adv_style") if styles else None
+            sel_style = st.selectbox(t("Style"), styles, key="adv_style") if styles else None
 
         filter_panel_close()
 
     with content_col:
         if d.empty:
-            st.info("Aucune donnée dans ce périmètre.")
+            st.info(t("Aucune donnée dans ce périmètre."))
             return
 
         # Apply secondary filter
         sub = d.copy()
-        filter_label = "Global"
-        if mode == "Par athlète" and sel_athlete:
+        filter_label = t("Global")
+        if mode == t("Par athlète") and sel_athlete:
             sub = sub[sub["Nom"] == sel_athlete]
             filter_label = sel_athlete
-        elif mode == "Par kata" and sel_kata:
+        elif mode == t("Par kata") and sel_kata:
             sub = sub[sub["Kata"] == sel_kata]
             filter_label = sel_kata
-        elif mode == "Par style" and sel_style:
+        elif mode == t("Par style") and sel_style:
             sub = sub[sub["Style"] == sel_style]
             filter_label = sel_style
 
@@ -108,7 +109,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
             return pd.DataFrame(rows)
 
         # ── Funnel charts K1/SA side by side ──
-        st.subheader(f"Funnel d'avancement – {filter_label}")
+        st.subheader(f"{t('Funnel d\'avancement')} – {filter_label}")
         show_chart_guide("funnel")
 
         sub_k1 = sub[sub["Type_Compet"] == "K1"]
@@ -118,7 +119,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
         with col_k1:
             st.markdown("**Premier League (K1)**")
             if sub_k1.empty:
-                st.info("Aucune donnée K1.")
+                st.info(t("Aucune donnée K1."))
             else:
                 tc_k1 = _build_tour_counts(sub_k1)
                 tc_k1_disp = tc_k1.copy()
@@ -134,7 +135,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
         with col_sa:
             st.markdown("**Series A (SA)**")
             if sub_sa.empty:
-                st.info("Aucune donnée SA.")
+                st.info(t("Aucune donnée SA."))
             else:
                 tc_sa = _build_tour_counts(sub_sa)
                 tc_sa_disp = tc_sa.copy()
@@ -154,7 +155,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
             st.dataframe(format_display_df(tc_all), use_container_width=True)
 
         # ── Note evolution across tours (K1/SA) ──
-        st.subheader("Note moyenne par tour")
+        st.subheader(t("Note moyenne par tour"))
         col_k1n, col_san = st.columns(2)
         with col_k1n:
             st.markdown("**K1**")
@@ -162,7 +163,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                 tc_k1_notes = _build_tour_counts(sub_k1).dropna(subset=["Note moy."])
                 tc_k1_notes["Tour_Display"] = tc_k1_notes["Tour"].apply(fmt_tour)
                 if not tc_k1_notes.empty:
-                    fig_n_k1 = px.line(tc_k1_notes, x="Tour_Display", y="Note moy.", markers=True, title="Note moy. par tour – K1")
+                    fig_n_k1 = px.line(tc_k1_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – K1"))
                     st.plotly_chart(fig_n_k1, use_container_width=True, key="adv_notes_k1")
         with col_san:
             st.markdown("**SA**")
@@ -170,23 +171,23 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                 tc_sa_notes = _build_tour_counts(sub_sa).dropna(subset=["Note moy."])
                 tc_sa_notes["Tour_Display"] = tc_sa_notes["Tour"].apply(fmt_tour)
                 if not tc_sa_notes.empty:
-                    fig_n_sa = px.line(tc_sa_notes, x="Tour_Display", y="Note moy.", markers=True, title="Note moy. par tour – SA")
+                    fig_n_sa = px.line(tc_sa_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – SA"))
                     st.plotly_chart(fig_n_sa, use_container_width=True, key="adv_notes_sa")
 
         # ── Top athletes reaching advanced tours ──
-        if mode == "Global":
-            st.subheader("Top athlètes – Tours avancés atteints")
+        if mode == t("Global"):
+            st.subheader(t("Top athlètes – Tours avancés atteints"))
 
             # Filters for top athletes
             top_col1, top_col2, top_col3 = st.columns(3)
             with top_col1:
-                top_type = st.selectbox("Type compétition", ["K1", "SA"], key="adv_top_type")
+                top_type = st.selectbox(t("Type compétition"), ["K1", "SA"], key="adv_top_type")
             with top_col2:
                 top_sexe_opts = sorted(d["Sexe"].dropna().unique().tolist())
-                top_sexe = st.selectbox("Sexe (top)", top_sexe_opts, key="adv_top_sexe") if top_sexe_opts else None
+                top_sexe = st.selectbox(t("Sexe (top)"), top_sexe_opts, key="adv_top_sexe") if top_sexe_opts else None
             with top_col3:
                 all_tours = sorted(d["N_Tour"].dropna().astype(str).unique().tolist(), key=_tour_rank)
-                top_tours = st.multiselect("Tours (min atteint)", all_tours, default=all_tours, format_func=fmt_tour, key="adv_top_tours")
+                top_tours = st.multiselect(t("Tours (min atteint)"), all_tours, default=all_tours, format_func=fmt_tour, key="adv_top_tours")
 
             sub_top = d[d["Type_Compet"] == top_type].copy()
             if top_sexe:
@@ -211,4 +212,4 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                     use_container_width=True,
                 )
             else:
-                st.info("Aucune donnée avec ces filtres.")
+                st.info(t("Aucune donnée avec ces filtres."))

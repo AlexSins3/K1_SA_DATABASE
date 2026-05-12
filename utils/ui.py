@@ -4,6 +4,8 @@ import html as html_lib
 
 import streamlit as st
 
+from utils.lang import t
+
 FILTER_PANEL_CSS = """
 <style>
 .filter-panel {
@@ -36,8 +38,8 @@ def filter_panel_close():
 
 def type_compet_radio(data, key_prefix: str):
     """Render a Type-compétition radio and return (label, filtered_df)."""
-    options = ["Tous", "Premier League (K1)", "Series A (SA)"]
-    selected = st.radio("Type de compétition", options, key=f"{key_prefix}_type_compet")
+    options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
+    selected = st.radio(t("Type de compétition"), options, key=f"{key_prefix}_type_compet")
 
     if selected == "Premier League (K1)":
         filtered = data[data["Type_Compet"] == "K1"].copy()
@@ -52,16 +54,17 @@ def type_compet_radio(data, key_prefix: str):
 def athlete_label_html(name: str) -> str:
     """Return a safe HTML snippet displaying an athlete's name."""
     safe_name = html_lib.escape(str(name))
-    return f"<p style='font-size:13px;font-style:italic;color:#555;'>Athlète : {safe_name}</p>"
+    label = t("Athlète")
+    return f"<p style='font-size:13px;font-style:italic;color:#555;'>{label} : {safe_name}</p>"
 
 
 def highlight_victory_series(s):
-    """Styler function: green for 'Oui', red for 'Non'."""
+    """Styler function: green for 'Oui'/'Yes', red for 'Non'/'No'."""
     styles = []
     for v in s:
-        if v == "Oui":
+        if v in ("Oui", "Yes"):
             styles.append("background-color: #d4edda;")
-        elif v == "Non":
+        elif v in ("Non", "No"):
             styles.append("background-color: #f8d7da;")
         else:
             styles.append("")

@@ -12,6 +12,7 @@ from constants.tours import classify_tour_type
 from utils.ui import filter_panel_open, filter_panel_close
 from utils.data_helpers import normalize_victoire_category
 from utils.interpretations import show_tab_help
+from utils.lang import t, get_lang
 
 
 def _split_var_mod(index_name: str, variables: list[str]):
@@ -28,7 +29,7 @@ def _split_var_mod(index_name: str, variables: list[str]):
 
 @st.fragment
 def show_acm_tab(data: pd.DataFrame) -> None:
-    st.header("Carte des associations Kata / Résultat (ACM)")
+    st.header(t("Carte des associations Kata / Résultat (ACM)"))
     show_tab_help("acm")
 
     df = data.copy()
@@ -42,12 +43,12 @@ def show_acm_tab(data: pd.DataFrame) -> None:
     # ══════════════════════════════════════════════════════════════════════════
     with filters_col:
         filter_panel_open()
-        st.markdown("### 🎯 Filtres ACM")
+        st.markdown(t("### 🎯 Filtres ACM"))
 
         # ── Type de compétition ──
-        type_compet_options = ["Tous", "Premier League (K1)", "Series A (SA)"]
+        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
         selected_type_compet = st.radio(
-            "Type de compétition", type_compet_options, key="acm_type_compet",
+            t("Type de compétition"), type_compet_options, key="acm_type_compet",
         )
         if selected_type_compet == "Premier League (K1)":
             data_acm_filtered = data_acm_filtered[data_acm_filtered["Type_Compet"] == "K1"]
@@ -60,13 +61,13 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
         type_de_tour_modalities = sorted(data_acm_filtered["Type de Tour"].unique().tolist())
         selected_types = st.multiselect(
-            "Type(s) de Tour à inclure",
+            t("Type(s) de Tour à inclure"),
             options=type_de_tour_modalities,
             default=type_de_tour_modalities,
             key="acm_type_tour",
         )
         if not selected_types:
-            st.warning("Aucun 'Type de Tour' sélectionné. Veuillez en sélectionner au moins un.")
+            st.warning(t("Aucun 'Type de Tour' sélectionné. Veuillez en sélectionner au moins un."))
             filter_panel_close()
             return
 
@@ -74,31 +75,31 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
         # ── Sexe ──
         st.markdown("---")
-        st.markdown("#### 🧍 Sexe")
-        sexe_modalities = ["Aucun", "M", "F"]
-        selected_sexe = st.selectbox("Sexe à inclure", sexe_modalities, index=0, key="acm_sexe")
-        if selected_sexe != "Aucun":
+        st.markdown(t("#### 🧑 Sexe"))
+        sexe_modalities = [t("Aucun"), "M", "F"]
+        selected_sexe = st.selectbox(t("Sexe à inclure"), sexe_modalities, index=0, key="acm_sexe")
+        if selected_sexe != t("Aucun"):
             data_acm_filtered = data_acm_filtered[data_acm_filtered["Sexe"] == selected_sexe]
             if data_acm_filtered.empty:
-                st.warning("Aucune donnée disponible pour le sexe sélectionné.")
+                st.warning(t("Aucune donnée disponible pour le sexe sélectionné."))
                 filter_panel_close()
                 return
 
         # ── Style ──
         st.markdown("---")
-        st.markdown("#### 🧬 Style de kata")
+        st.markdown(t("#### 🧬 Style de kata"))
 
         style_selected = None
         if "Style" not in data_acm_filtered.columns:
-            st.info("Pas de colonne 'Style' dans les données : filtrage par style désactivé.")
+            st.info(t("Pas de colonne 'Style' dans les données : filtrage par style désactivé."))
         else:
             tmp_style = data_acm_filtered[["Kata", "Style"]].dropna()
             if tmp_style.empty:
-                st.info("Aucune information de style disponible après filtrage.")
+                st.info(t("Aucune information de style disponible après filtrage."))
             else:
                 style_values = sorted(tmp_style["Style"].dropna().unique().tolist())
                 style_selected = st.multiselect(
-                    "Style(s) à inclure", options=style_values, default=style_values, key="acm_style",
+                    t("Style(s) à inclure"), options=style_values, default=style_values, key="acm_style",
                 )
 
                 style_per_kata = tmp_style.groupby("Kata")["Style"].apply(lambda s: sorted(set(s.dropna())))
@@ -126,34 +127,34 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                             allowed_katas.append(kata)
                     data_acm_filtered = data_acm_filtered[data_acm_filtered["Kata"].isin(allowed_katas)]
                 else:
-                    st.warning("Aucun style sélectionné, tous les styles sont inclus par défaut.")
+                    st.warning(t("Aucun style sélectionné, tous les styles sont inclus par défaut."))
 
         if data_acm_filtered.empty:
-            st.warning("Aucune donnée disponible après filtrage par style.")
+            st.warning(t("Aucune donnée disponible après filtrage par style."))
             filter_panel_close()
             return
 
         # ── Katas ──
         st.markdown("---")
-        st.markdown("#### 🥋 Katas")
+        st.markdown(t("#### 🥋 Katas"))
 
         kata_modalities = sorted(data_acm_filtered["Kata"].dropna().unique().tolist())
         if not kata_modalities:
-            st.warning("Aucun kata disponible après filtrage.")
+            st.warning(t("Aucun kata disponible après filtrage."))
             filter_panel_close()
             return
 
         selected_katas = st.multiselect(
-            "Katas à inclure dans l'ACM", options=kata_modalities, default=kata_modalities, key="acm_katas",
+            t("Katas à inclure dans l'ACM"), options=kata_modalities, default=kata_modalities, key="acm_katas",
         )
         if not selected_katas:
-            st.warning("Aucun kata sélectionné. Veuillez en sélectionner au moins un.")
+            st.warning(t("Aucun kata sélectionné. Veuillez en sélectionner au moins un."))
             filter_panel_close()
             return
 
         data_acm_filtered = data_acm_filtered[data_acm_filtered["Kata"].isin(selected_katas)]
         if data_acm_filtered.empty:
-            st.warning("Aucune donnée disponible après filtrage par katas.")
+            st.warning(t("Aucune donnée disponible après filtrage par katas."))
             filter_panel_close()
             return
 
@@ -162,10 +163,10 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
         # ── Options d'affichage ──
         st.markdown("---")
-        st.markdown("#### 🎨 Options d'affichage")
+        st.markdown(t("#### 🎨 Options d'affichage"))
 
-        display_individuals = st.checkbox("Afficher les individus", value=False, key="acm_display_individuals")
-        display_modalities = st.checkbox("Afficher les modalités des variables", value=True, key="acm_display_modalities")
+        display_individuals = st.checkbox(t("Afficher les individus"), value=False, key="acm_display_individuals")
+        display_modalities = st.checkbox(t("Afficher les modalités des variables"), value=True, key="acm_display_modalities")
 
         filter_panel_close()
 
@@ -173,25 +174,38 @@ def show_acm_tab(data: pd.DataFrame) -> None:
     # Right column: ACM computation & display
     # ══════════════════════════════════════════════════════════════════════════
     with content_col:
-        st.subheader("Paramètres de l'ACM")
-        st.markdown(
-            """
-            L'ACM ci-dessous est réalisée sur les variables qualitatives :
-            - **Kata**
-            - **Tour** (tour de la compétition)
-            - **Victoire** (True / False, normalisée)
+        st.subheader(t("Paramètres de l'ACM"))
+        if get_lang() == "en":
+            st.markdown(
+                """
+                The MCA below is performed on qualitative variables:
+                - **Kata**
+                - **Round** (competition round)
+                - **Victory** (True / False, normalized)
 
-            Les filtres à gauche permettent de **restreindre le périmètre d'analyse**
-            (type de compétition, type de tour, sexe, style, katas).
-            """
-        )
+                The filters on the left allow you to **restrict the analysis scope**
+                (competition type, round type, gender, style, katas).
+                """
+            )
+        else:
+            st.markdown(
+                """
+                L'ACM ci-dessous est réalisée sur les variables qualitatives :
+                - **Kata**
+                - **Tour** (tour de la compétition)
+                - **Victoire** (True / False, normalisée)
+
+                Les filtres à gauche permettent de **restreindre le périmètre d'analyse**
+                (type de compétition, type de tour, sexe, style, katas).
+                """
+            )
 
         mca_variables = ["Kata", "N_Tour", "Victoire_norm"]
         var_labels = {"Kata": "Kata", "N_Tour": "Tour", "Victoire_norm": "Victoire"}
 
         data_mca = data_acm_filtered[mca_variables].copy().dropna()
         if data_mca.empty:
-            st.warning("Les données sont vides après suppression des valeurs manquantes. Impossible de réaliser l'ACM.")
+            st.warning(t("Aucune donnée disponible après suppression des valeurs manquantes. Impossible de réaliser l'ACM."))
             return
 
         for col in mca_variables:
@@ -226,7 +240,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         explained_inertia = eigenvalues / total_inertia
 
         # ── Plot ──
-        st.subheader("Représentation de l'ACM")
+        st.subheader(t("Représentation de l'ACM"))
         fig = go.Figure()
 
         if display_modalities:
@@ -257,9 +271,9 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         y_min, y_max = y_coords.min() - 0.5, y_coords.max() + 0.5
 
         fig.update_layout(
-            title="Carte factorielle de l'ACM",
-            xaxis_title=f"Dimension 1 ({explained_inertia[0] * 100:.2f}% d'information capturée)",
-            yaxis_title=f"Dimension 2 ({explained_inertia[1] * 100:.2f}% d'information capturée)",
+            title=t("Carte factorielle de l'ACM"),
+            xaxis_title=f"Dimension 1 ({explained_inertia[0] * 100:.2f}%)",
+            yaxis_title=f"Dimension 2 ({explained_inertia[1] * 100:.2f}%)",
             showlegend=True, width=900, height=650,
         )
         fig.update_xaxes(range=[x_min, x_max], zeroline=False)
@@ -271,41 +285,71 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         st.plotly_chart(fig, use_container_width=True)
 
         # ── Interpretation ──
-        st.subheader("Interprétation de l'ACM")
+        st.subheader(t("Interprétation de l'ACM"))
 
-        if st.button("Interpréter automatiquement l'ACM", key="acm_interpret"):
+        if st.button(t("Interpréter automatiquement l'ACM"), key="acm_interpret"):
             interpretation = _interpret_acm(mca, data_mca, mca_variables)
             st.markdown(interpretation)
         else:
-            st.markdown(
-                """
-                L'**analyse des correspondances multiples (ACM)** sert à explorer les relations entre plusieurs variables
-                **qualitatives** (ici : *Kata*, *Tour*, *Victoire*).
+            if get_lang() == "en":
+                st.markdown(
+                    """
+                    **Multiple Correspondence Analysis (MCA)** explores relationships between multiple
+                    **qualitative** variables (here: *Kata*, *Round*, *Victory*).
 
-                ### Comment lire le graphique
+                    ### How to read the chart
 
-                - Chaque **modalité** (par ex. un nom de kata, un tour, `True/False` pour la victoire) est représentée par un point.
-                - Les modalités **proches** sur le plan factoriel ont tendance à apparaître **ensemble** dans les mêmes combats.
-                - La **Dimension 1** (axe horizontal) et la **Dimension 2** (axe vertical) sont les deux directions qui résument le mieux
-                  la variabilité des données.
-                - Les modalités **`Victoire = True`** et **`Victoire = False`** servent de repères :
-                    - Les katas proches de **`Victoire = True`** sont plutôt associés à des combats gagnés.
-                    - Les katas proches de **`Victoire = False`** sont plutôt associés à des combats perdus.
+                    - Each **modality** (e.g. a kata name, a round, `True/False` for victory) is represented by a point.
+                    - Modalities that are **close** on the factor map tend to appear **together** in the same matches.
+                    - **Dimension 1** (horizontal axis) and **Dimension 2** (vertical axis) are the two directions that best summarize the data variability.
+                    - The modalities **`Victory = True`** and **`Victory = False`** serve as reference points:
+                        - Katas close to **`Victory = True`** are mostly associated with won matches.
+                        - Katas close to **`Victory = False`** are mostly associated with lost matches.
 
-                ### À garder en tête
+                    ### Keep in mind
 
-                - L'ACM montre des **associations**, pas une causalité directe.
-                - Les résultats dépendent fortement des **filtres** choisis à gauche (type de compétition, types de tours, sexe, style, katas).
-                - Pour affiner l'analyse, tu peux :
-                    - restreindre à un seul sexe,
-                    - ne garder que certains types de tours,
-                    - filtrer par style (Shotokan / Shitoryu),
-                    - exclure des katas très peu fréquents, etc.
+                    - MCA shows **associations**, not direct causality.
+                    - Results strongly depend on the **filters** chosen on the left (competition type, round types, gender, style, katas).
+                    - To refine the analysis, you can:
+                        - restrict to one gender,
+                        - keep only certain round types,
+                        - filter by style (Shotokan / Shitoryu),
+                        - exclude very infrequent katas, etc.
 
-                Tu peux ensuite cliquer sur **"Interpréter automatiquement l'ACM"** pour obtenir une lecture guidée des katas
-                les plus associés aux victoires et aux défaites.
-                """
-            )
+                    You can then click **"Automatically interpret MCA"** for a guided reading of katas
+                    most associated with victories and defeats.
+                    """
+                )
+            else:
+                st.markdown(
+                    """
+                    L'**analyse des correspondances multiples (ACM)** sert à explorer les relations entre plusieurs variables
+                    **qualitatives** (ici : *Kata*, *Tour*, *Victoire*).
+
+                    ### Comment lire le graphique
+
+                    - Chaque **modalité** (par ex. un nom de kata, un tour, `True/False` pour la victoire) est représentée par un point.
+                    - Les modalités **proches** sur le plan factoriel ont tendance à apparaître **ensemble** dans les mêmes combats.
+                    - La **Dimension 1** (axe horizontal) et la **Dimension 2** (axe vertical) sont les deux directions qui résument le mieux
+                      la variabilité des données.
+                    - Les modalités **`Victoire = True`** et **`Victoire = False`** servent de repères :
+                        - Les katas proches de **`Victoire = True`** sont plutôt associés à des combats gagnés.
+                        - Les katas proches de **`Victoire = False`** sont plutôt associés à des combats perdus.
+
+                    ### À garder en tête
+
+                    - L'ACM montre des **associations**, pas une causalité directe.
+                    - Les résultats dépendent fortement des **filtres** choisis à gauche (type de compétition, types de tours, sexe, style, katas).
+                    - Pour affiner l'analyse, tu peux :
+                        - restreindre à un seul sexe,
+                        - ne garder que certains types de tours,
+                        - filtrer par style (Shotokan / Shitoryu),
+                        - exclure des katas très peu fréquents, etc.
+
+                    Tu peux ensuite cliquer sur **"Interpréter automatiquement l'ACM"** pour obtenir une lecture guidée des katas
+                    les plus associés aux victoires et aux défaites.
+                    """
+                )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

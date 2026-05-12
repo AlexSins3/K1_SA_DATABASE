@@ -9,6 +9,7 @@ from config import DATA_PATH
 from utils.ui import add_footer
 from utils.interpretations import show_glossaire
 from utils.display import fmt_athlete, fmt_underscore
+from utils.lang import render_language_selector, t
 from tabs.dataset_view import show_dataset_tab
 from tabs.athlete_focus import show_athlete_focus_tab
 from tabs.graphs import show_graphs_tab
@@ -83,7 +84,10 @@ def load_data(csv_path: Path) -> pd.DataFrame:
 
 
 def main():
-    st.title("Suivi & Analyse des Katas – Premier League (K1) & Series A (SA)")
+    # ── Language selector (top-right) ──
+    render_language_selector()
+
+    st.title(t("Suivi & Analyse des Katas – Premier League (K1) & Series A (SA)"))
 
     # Chargement des données
     if not DATA_PATH.exists():
@@ -94,16 +98,16 @@ def main():
 
     # Onglets principaux
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
-        "Dataset",
-        "Focus Athlète",
-        "Progression temporelle",
-        "Score différentiel",
-        "Analyse continentale",
-        "Avancement par tour",
-        "Diversité kata",
-        "Graphiques interactifs",
-        "ACM",
-        "Probabilité de victoire",
+        t("Dataset"),
+        t("Focus Athlète"),
+        t("Progression temporelle"),
+        t("Score différentiel"),
+        t("Analyse continentale"),
+        t("Avancement par tour"),
+        t("Diversité kata"),
+        t("Graphiques interactifs"),
+        t("ACM"),
+        t("Probabilité de victoire"),
     ])
 
     with tab1:
