@@ -1074,6 +1074,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         katas_style = _get_katas_of_style_in_scope(df_scope, style_a)
         katas_effectues_a = sorted(df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist())
+        katas_effectues_a = [k for k in katas_effectues_a if k in katas_style]
 
         katas_selectionnes = st.multiselect(
             t("Katas à tester"), options=katas_style,

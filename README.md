@@ -21,44 +21,53 @@ Interface bilingue FR / EN avec sélecteur de langue, glossaire contextuel et ai
 
 ```
 K1_SA_DATABASE/
-├── app.py                      # Point d'entrée Streamlit
-├── config.py                   # Chemins & constantes globales
+├── app.py                       # Point d'entrée Streamlit
+├── config.py                    # Config centralisée (DATA_PATH)
 ├── requirements.txt
-├── constants/
-│   ├── tours.py                # Mappings des tours K1/SA/Kiviat
-│   └── styles.py               # Listes Shotokan / ShitoRyu
-├── utils/
-│   ├── ui.py                   # Composants UI partagés (CSS, footer, filtres)
-│   ├── data_helpers.py         # Conversions Victoire, helpers données
-│   ├── display.py              # Formatage d'affichage (tours, noms, colonnes)
-│   ├── interpretations.py      # Aide contextuelle, indicateurs colorés, glossaire
-│   ├── lang.py                 # Internationalisation FR / EN
-│   └── stats.py                # Tests statistiques (normalité, ANOVA, Chi²…)
-├── tabs/
-│   ├── athlete_focus/          # Onglet Focus Athlète (décomposé)
-│   │   ├── __init__.py
+├── .streamlit/config.toml
+│
+├── tabs/                        # Onglets Streamlit
+│   ├── athlete_focus/           # Sous-module Focus Athlète
 │   │   ├── filters.py
 │   │   ├── charts.py
 │   │   └── history.py
-│   ├── proba_victoire_kata.py  # Onglet Probabilité de victoire
-│   ├── kata_comparison.py      # Onglet Comparaison de katas
-│   ├── tendances.py            # Onglet Tendances & Réalités
-│   ├── match_analysis.py       # Onglet Analyse des matchs
-│   ├── acm.py                  # Onglet ACM
-│   ├── graphs.py               # Onglet Exploration libre
-│   ├── dataset_view.py         # Onglet Dataset
-│   ├── continental.py          # (non utilisé – analyse continentale)
-│   ├── kata_diversity.py       # (non utilisé – diversité kata)
-│   ├── score_differential.py   # (non utilisé – score différentiel)
-│   └── tour_advancement.py     # (non utilisé – avancement par tour)
-├── data/
-│   ├── Database_K1_SA.csv      # Base de données principale
-│   └── script_correction.py    # Script de correction des styles
-├── up_to_date/
-│   └── progression.py          # Module de progression (en développement)
+│   ├── proba_victoire_kata.py
+│   ├── kata_comparison.py
+│   ├── tendances.py
+│   ├── match_analysis.py
+│   ├── acm.py
+│   ├── graphs.py
+│   └── dataset_view.py
+│
+├── utils/                       # Utilitaires partagés
+│   ├── ui.py                    # Composants UI (CSS, footer)
+│   ├── data_helpers.py          # Conversions, helpers données
+│   ├── display.py               # Formatage d'affichage
+│   ├── interpretations.py       # Aide contextuelle, glossaire
+│   ├── lang.py                  # Internationalisation FR/EN
+│   └── stats.py                 # Tests statistiques
+│
+├── constants/                   # Constantes statiques
+│   ├── tours.py                 # Mappings tours K1/SA
+│   └── styles.py                # Listes Shotokan / ShitoRyu
+│
+├── data/                        # Données CSV
+│   └── Database_K1_SA.csv
+│
+├── scripts/                     # CLI & maintenance
+│   ├── data_correction.py       # Corrections de styles dans le CSV
+│   └── progression.py           # Suivi de progression
+│
 ├── tests/
 │   ├── test_data_helpers.py
 │   └── test_stats.py
+│
+└── app_publique/                # (Futur) Version publique avec authentification
+    ├── api/                     # Backend FastAPI (auth + tracking)
+    ├── auth/                    # Couche auth côté Streamlit
+    ├── admin_tab.py             # Onglet admin
+    ├── run_api.py               # Point d'entrée API
+    └── manage_users.py          # Gestion des comptes CLI
 ```
 
 ## Installation
@@ -82,6 +91,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+L'application est également déployée sur **Streamlit Cloud**.
+
 ## Tests
 
 ```bash
@@ -102,6 +113,18 @@ Les données proviennent de **SportData** et couvrent les compétitions K1 Premi
 - **prince** – Analyse des Correspondances Multiples (ACM)
 - **pytest** – Tests unitaires
 
+## À propos de `app_publique/`
+
+Le dossier `app_publique/` contient un système complet d'authentification (FastAPI + JWT + SQLAlchemy) prévu pour une future version publique de l'application. Il inclut :
+
+- **API REST** (FastAPI) avec login, register, changement de mot de passe
+- **Tracking d'activité** (pages vues par utilisateur)
+- **Panneau admin** (gestion des utilisateurs, historique d'utilisation)
+- **Gestion CLI des comptes** (création, changement de mots de passe)
+
+Cette version nécessite un hébergement capable de faire tourner deux processus (API + Streamlit), par exemple Render, Railway ou un VPS. Elle n'est pas compatible avec Streamlit Cloud seul.
+
 ## Auteur
 
 **Alexis Vincent**
+

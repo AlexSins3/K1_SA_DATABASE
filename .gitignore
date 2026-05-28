@@ -1,0 +1,41 @@
+# ===========================
+# K1 SA Database - .gitignore
+# ===========================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment & secrets
+.env
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Build
+dist/
+build/
+*.egg-info/
