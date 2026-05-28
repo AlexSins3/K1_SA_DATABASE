@@ -119,7 +119,7 @@ def show_dataset_tab(data: pd.DataFrame) -> None:
             colonnes_selectionnees = colonnes
 
         # ── Affichage ──
-        st.dataframe(format_display_df(df[colonnes_selectionnees]), use_container_width=True)
+        st.dataframe(format_display_df(df[colonnes_selectionnees]), width="stretch")
 
         # ── Téléchargement ──
         csv = _convertir_csv(df[colonnes_selectionnees])
@@ -130,3 +130,29 @@ def show_dataset_tab(data: pd.DataFrame) -> None:
             mime="text/csv",
             key="dataset_download_button",
         )
+
+        # ── Qualité des données ──
+        with st.expander("🔍 " + t("Qualité des données"), expanded=False):
+            st.markdown(t("**Valeurs manquantes par colonne :**"))
+            missing = df.isnull().sum()
+            missing_pct = (missing / len(df) * 100).round(1)
+            quality_df = pd.DataFrame({
+                t("Colonne"): missing.index,
+                t("Manquantes"): missing.values,
+                "% NaN": missing_pct.values,
+            })
+            quality_df = quality_df[quality_df[t("Manquantes")] > 0].sort_values(t("Manquantes"), ascending=False)
+            if quality_df.empty:
+                st.success(t("Aucune valeur manquante dans le dataset filtré."))
+            else:
+                st.dataframe(quality_df, width="stretch", hide_index=True)
+
+            # Stats descriptives rapides pour les numériques
+            st.markdown(t("**Statistiques descriptives (variables numériques) :**"))
+            numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+            if numeric_cols:
+                desc = df[numeric_cols].describe().T
+                desc = desc[["count", "mean", "std", "min", "max"]].round(2)
+                desc.columns = [t("Nb valeurs"), t("Moyenne"), t("Écart-type"), "Min", "Max"]
+                st.dataframe(desc, width="stretch")
+

@@ -19,6 +19,7 @@ _TOUR_ORDER = [
     "T1", "T2", "T3",
     "Pool_1", "Pool_2", "Pool_3",
     "PW1", "PW2", "PW3",
+    "RP1", "RP2", "RP3", "RP4",
     "R1", "R2",
     "Bronze", "Final",
 ]
@@ -42,7 +43,7 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
     show_tab_help("tour_advancement")
 
     df = data.copy()
-    for col in ["Note", "Year"]:
+    for col in ["Note", "Year", "Drapeau"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "Victoire" in df.columns:
@@ -58,6 +59,15 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
         d = df.copy()
         if sel_sexe != t("Tous"):
             d = d[d["Sexe"] == sel_sexe]
+
+        # Year filter
+        years_avail = sorted(d["Year"].dropna().unique().tolist())
+        sel_years_adv = st.multiselect(
+            t("Année(s)"), [int(y) for y in years_avail],
+            default=[int(y) for y in years_avail], key="adv_years"
+        )
+        if sel_years_adv:
+            d = d[d["Year"].isin([float(y) for y in sel_years_adv])]
 
         mode = st.radio(t("Analyse"), [t("Global"), t("Par athlète"), t("Par kata"), t("Par style")], key="adv_mode")
 
@@ -149,30 +159,77 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                 st.plotly_chart(fig_f_sa, use_container_width=True, key="adv_funnel_sa")
                 st.markdown(interpret_tour_advancement(tc_sa, f"{filter_label} – SA"), unsafe_allow_html=True)
 
-        # Table récapitulative (K1 + SA combinés)
-        tc_all = _build_tour_counts(sub)
-        if not tc_all.empty:
-            st.dataframe(format_display_df(tc_all), use_container_width=True)
+        # ── Performance by tour: sub-tabs Notes / Drapeaux ──
+        st.markdown("---")
+        tab_adv_notes, tab_adv_flags = st.tabs([t("Notes (avant 2026)"), t("Drapeaux (2026+)")])
 
-        # ── Note evolution across tours (K1/SA) ──
-        st.subheader(t("Note moyenne par tour"))
-        col_k1n, col_san = st.columns(2)
-        with col_k1n:
-            st.markdown("**K1**")
-            if not sub_k1.empty:
-                tc_k1_notes = _build_tour_counts(sub_k1).dropna(subset=["Note moy."])
-                tc_k1_notes["Tour_Display"] = tc_k1_notes["Tour"].apply(fmt_tour)
-                if not tc_k1_notes.empty:
-                    fig_n_k1 = px.line(tc_k1_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – K1"))
-                    st.plotly_chart(fig_n_k1, use_container_width=True, key="adv_notes_k1")
-        with col_san:
-            st.markdown("**SA**")
-            if not sub_sa.empty:
-                tc_sa_notes = _build_tour_counts(sub_sa).dropna(subset=["Note moy."])
-                tc_sa_notes["Tour_Display"] = tc_sa_notes["Tour"].apply(fmt_tour)
-                if not tc_sa_notes.empty:
-                    fig_n_sa = px.line(tc_sa_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – SA"))
-                    st.plotly_chart(fig_n_sa, use_container_width=True, key="adv_notes_sa")
+        with tab_adv_notes:
+            sub_notes = sub[sub["Note"].notna()]
+            if sub_notes.empty:
+                st.info(t("Aucune donnée avec notes dans ce périmètre."))
+            else:
+                st.subheader(t("Note moyenne par tour") + f" ({t('avant 2026')})")
+                sub_k1_n = sub_notes[sub_notes["Type_Compet"] == "K1"]
+                sub_sa_n = sub_notes[sub_notes["Type_Compet"] == "SA"]
+                col_k1n, col_san = st.columns(2)
+                with col_k1n:
+                    st.markdown("**K1**")
+                    if not sub_k1_n.empty:
+                        tc_k1_notes = _build_tour_counts(sub_k1_n).dropna(subset=["Note moy."])
+                        tc_k1_notes["Tour_Display"] = tc_k1_notes["Tour"].apply(fmt_tour)
+                        if not tc_k1_notes.empty:
+                            fig_n_k1 = px.line(tc_k1_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – K1"))
+                            st.plotly_chart(fig_n_k1, use_container_width=True, key="adv_notes_k1")
+                with col_san:
+                    st.markdown("**SA**")
+                    if not sub_sa_n.empty:
+                        tc_sa_notes = _build_tour_counts(sub_sa_n).dropna(subset=["Note moy."])
+                        tc_sa_notes["Tour_Display"] = tc_sa_notes["Tour"].apply(fmt_tour)
+                        if not tc_sa_notes.empty:
+                            fig_n_sa = px.line(tc_sa_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – SA"))
+                            st.plotly_chart(fig_n_sa, use_container_width=True, key="adv_notes_sa")
+
+        with tab_adv_flags:
+            sub_flags = sub[sub["Drapeau"].notna()] if "Drapeau" in sub.columns else pd.DataFrame()
+            if sub_flags.empty:
+                st.info(t("Aucune donnée avec drapeaux dans ce périmètre."))
+            else:
+                st.subheader(t("Statistiques drapeaux par tour") + " (2026+)")
+                sub_k1_f = sub_flags[sub_flags["Type_Compet"] == "K1"]
+                sub_sa_f = sub_flags[sub_flags["Type_Compet"] == "SA"]
+
+                def _build_flag_tour_stats(data_subset):
+                    tours_in = sorted(data_subset["N_Tour"].dropna().astype(str).unique().tolist(), key=_tour_rank)
+                    rows = []
+                    for tour in tours_in:
+                        t_data = data_subset[data_subset["N_Tour"].astype(str) == tour]
+                        rows.append({
+                            "Tour": tour,
+                            "Nb athlètes": t_data["Nom"].nunique(),
+                            "Drapeau moy.": round(t_data["Drapeau"].mean(), 2),
+                            "Win Rate": f"{t_data['Victoire'].mean():.0%}" if t_data["Victoire"].notna().any() else "—",
+                        })
+                    return pd.DataFrame(rows)
+
+                col_k1f, col_saf = st.columns(2)
+                with col_k1f:
+                    st.markdown(f"**K1 ({t('7 juges')})**")
+                    if not sub_k1_f.empty:
+                        tc_k1_f = _build_flag_tour_stats(sub_k1_f)
+                        tc_k1_f["Tour_Display"] = tc_k1_f["Tour"].apply(fmt_tour)
+                        fig_fk1 = px.bar(tc_k1_f, x="Tour_Display", y="Drapeau moy.", title=t("Drapeau moy. par tour – K1"),
+                                         labels={"Drapeau moy.": t("Drapeau moy."), "Tour_Display": "Tour"})
+                        st.plotly_chart(fig_fk1, use_container_width=True, key="adv_flags_k1")
+                        st.dataframe(format_display_df(tc_k1_f[["Tour", "Nb athlètes", "Drapeau moy.", "Win Rate"]].rename(columns={"Nb athlètes": t("Nb athlètes"), "Drapeau moy.": t("Drapeau moy.")})), use_container_width=True)
+                with col_saf:
+                    st.markdown(f"**SA ({t('5 juges')})**")
+                    if not sub_sa_f.empty:
+                        tc_sa_f = _build_flag_tour_stats(sub_sa_f)
+                        tc_sa_f["Tour_Display"] = tc_sa_f["Tour"].apply(fmt_tour)
+                        fig_fsa = px.bar(tc_sa_f, x="Tour_Display", y="Drapeau moy.", title=t("Drapeau moy. par tour – SA"),
+                                         labels={"Drapeau moy.": t("Drapeau moy."), "Tour_Display": "Tour"})
+                        st.plotly_chart(fig_fsa, use_container_width=True, key="adv_flags_sa")
+                        st.dataframe(format_display_df(tc_sa_f[["Tour", "Nb athlètes", "Drapeau moy.", "Win Rate"]].rename(columns={"Nb athlètes": t("Nb athlètes"), "Drapeau moy.": t("Drapeau moy.")})), use_container_width=True)
 
         # ── Top athletes reaching advanced tours ──
         if mode == t("Global"):

@@ -59,6 +59,16 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
         else:
             data_compet = df.copy()
 
+        # Year filter
+        if "Year" in data_compet.columns:
+            years_g = sorted(pd.to_numeric(data_compet["Year"], errors="coerce").dropna().unique().tolist())
+            sel_years_g = st.multiselect(
+                t("Année(s)"), [int(y) for y in years_g],
+                default=[int(y) for y in years_g], key="graphs_years"
+            )
+            if sel_years_g:
+                data_compet = data_compet[pd.to_numeric(data_compet["Year"], errors="coerce").isin([float(y) for y in sel_years_g])]
+
         variables_numeriques, variables_categorielles = get_numeric_and_categorical_columns(data_compet)
 
         st.markdown("---")
@@ -98,6 +108,43 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 """
             )
 
+        # ── Suggestions de questions intéressantes ──
+        with st.expander("💡 " + t("Suggestions d'analyses"), expanded=False):
+            if get_lang() == "en":
+                st.markdown(
+                    """
+                    **Questions you can answer with this tool:**
+
+                    | Question | Y variable | X variable |
+                    |----------|-----------|-----------|
+                    | Are scores different by Style? | Note | Style |
+                    | Do certain katas win more? | Victoire | Kata |
+                    | Is there a link between age and score? | Note | Age |
+                    | Is the gender difference significant? | Note | Sexe |
+                    | Does ranking predict the scores? | Note | Ranking |
+                    | Are some rounds more competitive? | Note | N_Tour |
+                    | Which continents dominate? | Victoire | Continent |
+                    | Score distribution overview | Note | — |
+                    """
+                )
+            else:
+                st.markdown(
+                    """
+                    **Questions auxquelles cet outil peut répondre :**
+
+                    | Question | Variable Y | Variable X |
+                    |----------|-----------|-----------|
+                    | Les notes diffèrent-elles par style ? | Note | Style |
+                    | Certains katas gagnent-ils plus ? | Victoire | Kata |
+                    | Y a-t-il un lien entre âge et notes ? | Note | Age |
+                    | Différence H/F significative ? | Note | Sexe |
+                    | Le ranking prédit-il les notes ? | Note | Ranking |
+                    | Certains tours sont-ils plus compétitifs ? | Note | N_Tour |
+                    | Quels continents dominent ? | Victoire | Continent |
+                    | Distribution des notes | Note | — |
+                    """
+                )
+
         st.subheader(t("Type de graphique généré"))
 
         # ─── Cas 1 : une seule variable numérique en Y ───────────────────────
@@ -130,7 +177,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                           annotation_text=t("Moyenne"), annotation_position="top left")
             fig.add_vline(x=data_filtered[y_num].median(), line_dash="dash", line_color="green",
                           annotation_text=t("Médiane"), annotation_position="top right")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader(t("Test de normalité (automatique)"))
             if st.button(t("Effectuer le test de normalité"), key="graphs_btn_normality"):
@@ -162,7 +209,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 return
 
             fig = px.box(data_filtered, x=x_cat, y=y_num, points="all")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader(t("Test Statistique (automatique)"))
             if st.button(t("Effectuer le test statistique"), key="graphs_btn_y_num_x_cat"):
@@ -189,12 +236,12 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             st.markdown(f"**{t('Histogramme des effectifs de chaque modalité de')} `{fmt_col(y_cat)}`**")
             counts = data_filtered[y_cat].value_counts().reset_index()
             counts.columns = [y_cat, t("Effectif")]
-            st.plotly_chart(px.bar(counts, x=y_cat, y=t("Effectif")), use_container_width=True)
+            st.plotly_chart(px.bar(counts, x=y_cat, y=t("Effectif")), width="stretch")
 
             st.markdown(f"**{t('Histogramme des proportions de chaque modalité de')} `{fmt_col(y_cat)}`**")
             counts_prop = data_filtered[y_cat].value_counts(normalize=True).reset_index()
             counts_prop.columns = [y_cat, "Proportion"]
-            st.plotly_chart(px.bar(counts_prop, x=y_cat, y="Proportion"), use_container_width=True)
+            st.plotly_chart(px.bar(counts_prop, x=y_cat, y="Proportion"), width="stretch")
 
         # ─── Cas 4 : X et Y catégorielles ────────────────────────────────────
         elif y_cat != _NONE and x_cat != _NONE and y_num == _NONE and x_num == _NONE:
@@ -222,7 +269,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
             crosstab = pd.crosstab(data_filtered[x_cat], data_filtered[y_cat], normalize="index")
             crosstab.reset_index(inplace=True)
             crosstab_melted = crosstab.melt(id_vars=x_cat, var_name=y_cat, value_name="Proportion")
-            st.plotly_chart(px.bar(crosstab_melted, x=x_cat, y="Proportion", color=y_cat, barmode="stack"), use_container_width=True)
+            st.plotly_chart(px.bar(crosstab_melted, x=x_cat, y="Proportion", color=y_cat, barmode="stack"), width="stretch")
 
             st.subheader(t("Test Statistique (automatique)"))
             if st.button(t("Effectuer le test d'indépendance"), key="graphs_btn_x_y_cat"):
@@ -253,7 +300,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
                 st.warning(t("Aucune donnée disponible avec ces filtres."))
                 return
 
-            st.plotly_chart(px.scatter(data_filtered, x=x_num, y=y_num), use_container_width=True)
+            st.plotly_chart(px.scatter(data_filtered, x=x_num, y=y_num), width="stretch")
 
             st.subheader(t("Test de corrélation (automatique)"))
             if st.button(t("Effectuer le test de corrélation"), key="graphs_btn_corr"):

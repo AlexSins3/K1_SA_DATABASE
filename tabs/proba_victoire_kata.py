@@ -14,7 +14,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from utils.ui import filter_panel_open, filter_panel_close
-from utils.data_helpers import victoire_to_int, safe_mode
+from utils.data_helpers import victoire_to_int, safe_mode, compute_time_weight, is_flag_era
 from utils.interpretations import show_tab_help, proba_bar_html, proba_color, _color_badge
 from utils.display import fmt_tour, format_display_df
 from utils.lang import t, get_lang
@@ -60,9 +60,12 @@ def _build_paired_matches(df: pd.DataFrame) -> pd.DataFrame:
         if c not in d.columns:
             raise ValueError(f"Colonne manquante: {c}")
 
-    for col_default in ["Year", "Nation", "Style", "Sexe", "Note", "Ranking", "Age", "Continent", "Region_monde"]:
+    for col_default in ["Year", "Nation", "Style", "Sexe", "Note", "Ranking", "Age", "Continent", "Region_monde", "Drapeau"]:
         if col_default not in d.columns:
             d[col_default] = np.nan
+
+    # Filter out placeholder rows (no Nom)
+    d = d[d["Nom"].notna() & (d["Nom"].astype(str).str.strip() != "")].reset_index(drop=True)
 
     d = d.sort_values(
         ["Competition", "Year", "Type_Compet", "N_Tour"], kind="mergesort",
@@ -139,6 +142,10 @@ def _build_paired_matches(df: pd.DataFrame) -> pd.DataFrame:
         "Blue_Continent": _pick_inv("Continent"),
         "Red_Region": _pick("Region_monde"),
         "Blue_Region": _pick_inv("Region_monde"),
+        "Red_Drapeau": np.where(is_r1_red, pd.to_numeric(r1["Drapeau"], errors="coerce").values,
+                                pd.to_numeric(r2["Drapeau"], errors="coerce").values),
+        "Blue_Drapeau": np.where(is_r1_red, pd.to_numeric(r2["Drapeau"], errors="coerce").values,
+                                 pd.to_numeric(r1["Drapeau"], errors="coerce").values),
         "Red_Win": red_win,
     })
 
@@ -174,6 +181,7 @@ def _to_directed_rows(matches: pd.DataFrame) -> pd.DataFrame:
     red["Region"] = matches["Red_Region"]
     red["Opp_Region"] = matches["Blue_Region"]
     red["Athlete_Win"] = matches["Red_Win"].astype(int)
+    red["Is_Red"] = 1
 
     # Blue perspective (vectorized)
     blue = matches[base_cols].copy()
@@ -198,6 +206,7 @@ def _to_directed_rows(matches: pd.DataFrame) -> pd.DataFrame:
     blue["Region"] = matches["Blue_Region"]
     blue["Opp_Region"] = matches["Red_Region"]
     blue["Athlete_Win"] = (1 - matches["Red_Win"]).astype(int)
+    blue["Is_Red"] = 0
 
     return pd.concat([red, blue], ignore_index=True)
 
@@ -221,13 +230,18 @@ class Aggregates:
     athlete_fav_kata: pd.DataFrame    # favourite kata per athlete
     athlete_kata_diversity: pd.DataFrame  # Kata_Diversity per athlete
     opponent_seen_kata: pd.DataFrame  # B has seen kata before (Nom, Opp_Kata, Seen)
+    # v4 — flag era & short-term dynamics
+    athlete_flag_stats: pd.DataFrame  # Flag-era WR per athlete
+    athlete_recent_5: pd.DataFrame    # Short momentum (last 5 matches)
+    athlete_streak: pd.DataFrame      # Current win/loss streak
 
 
 def _compute_aggregates(directed: pd.DataFrame) -> Aggregates:
     if directed.empty:
         empty = pd.DataFrame()
         return Aggregates(empty, empty, empty, empty, empty, empty, 0.0,
-                          empty, empty, empty, empty, empty)
+                          empty, empty, empty, empty, empty,
+                          empty, empty, empty)
 
     d = directed.copy()
 
@@ -336,9 +350,49 @@ def _compute_aggregates(directed: pd.DataFrame) -> Aggregates:
     opp_seen.rename(columns={"Athlete_Win": "Seen_Count"}, inplace=True)
     opp_seen["Seen"] = (opp_seen["Seen_Count"] > 0).astype(int)
 
+    # ── v4 NEW aggregates: flag era, short-term momentum, streak ──
+
+    # 6) Flag-era win rate per athlete (matches where Note is NaN → flag era)
+    d_flag = d[d["Note"].isna()].copy()
+    if not d_flag.empty:
+        flag_agg = d_flag.groupby("Nom")["Athlete_Win"].agg(["sum", "count"]).reset_index()
+        flag_agg.rename(columns={"sum": "Flag_Wins", "count": "Flag_Total"}, inplace=True)
+        flag_agg["Flag_WinRate"] = (flag_agg["Flag_Wins"] + 2) / (flag_agg["Flag_Total"] + 4)
+        athlete_flag_stats = flag_agg[["Nom", "Flag_WinRate", "Flag_Total"]].copy()
+    else:
+        athlete_flag_stats = pd.DataFrame(columns=["Nom", "Flag_WinRate", "Flag_Total"])
+
+    # 7) Very recent momentum (last 5 matches) — more responsive than last 15
+    d_recent5 = d.copy()
+    d_recent5["_rev_idx"] = d_recent5.groupby("Nom").cumcount(ascending=False)
+    recent_5 = d_recent5[d_recent5["_rev_idx"] < 5]
+    r5_wr = recent_5.groupby("Nom")["Athlete_Win"].agg(["sum", "count"]).reset_index()
+    r5_wr.rename(columns={"sum": "Recent5_Wins", "count": "Recent5_Total"}, inplace=True)
+    r5_wr["Recent5_WinRate"] = (r5_wr["Recent5_Wins"] + 1) / (r5_wr["Recent5_Total"] + 2)
+    athlete_recent_5 = r5_wr[["Nom", "Recent5_WinRate"]].copy()
+
+    # 8) Current win/loss streak (positive = win streak, negative = loss streak)
+    def _compute_streak(group):
+        results = group["Athlete_Win"].values
+        if len(results) == 0:
+            return 0
+        streak = 0
+        last = results[-1]
+        for r in reversed(results):
+            if r == last:
+                streak += 1
+            else:
+                break
+        return streak if last == 1 else -streak
+
+    streak_data = d.groupby("Nom").apply(_compute_streak, include_groups=False).reset_index()
+    streak_data.columns = ["Nom", "Win_Streak"]
+    athlete_streak = streak_data
+
     return Aggregates(a, ak, ok, kt, h2h, ke, global_note_mean,
                       athlete_trend, athlete_recent, athlete_fav_kata,
-                      athlete_kata_diversity, opp_seen)
+                      athlete_kata_diversity, opp_seen,
+                      athlete_flag_stats, athlete_recent_5, athlete_streak)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -353,7 +407,7 @@ FEATURE_COLS = [
     "Note_Diff", "Ranking_Adv", "Log_A_Kata_N", "A_Kata_Note_C",
     # v3 — temporal & context features
     "Note_Trend_Diff",   # slope of A's notes - slope of B's notes
-    "Momentum_Diff",     # recent win rate A - recent win rate B
+    "Momentum_Diff",     # recent win rate A - recent win rate B (last 15)
     "Age_Diff",          # (Age_A - Age_B) / 10
     "Is_Fav_Kata_A",     # A plays their most frequent kata (0/1)
     "Note_Std_Diff",     # consistency: std A - std B (negative = A more consistent)
@@ -362,12 +416,18 @@ FEATURE_COLS = [
     "B_Seen_Kata",       # B has faced this kata before (0/1)
     "Is_Home",           # A plays in their continent
     "Tour_Rank",         # ordinal encoding of round (higher = later)
+    # v4 — flag, ceinture & short-term dynamics
+    "Is_Red",            # A wears the red belt (0/1)
+    "Flag_WinRate_Diff", # A's flag win rate - B's flag win rate (2026+)
+    "Recent_5_Diff",     # A's last 5 matches WR - B's (hot hand)
+    "Win_Streak_Diff",   # A's streak - B's streak (normalized)
 ]
 
 # Tour ordinal ranking for Tour_Rank feature
 _TOUR_RANK_MAP = {
     "pool_1": 1, "pool_2": 2, "pool_3": 3, "pool_4": 4,
     "round_1": 2, "round_2": 3, "1/8": 3, "1/4": 4,
+    "rp1": 3, "rp2": 3, "rp3": 4, "rp4": 4,
     "bronze": 5, "finale": 6, "final": 6,
 }
 
@@ -553,9 +613,59 @@ def _prepare_training_table(directed: pd.DataFrame, ag: Aggregates) -> pd.DataFr
     d["Tour_Rank"] = d["N_Tour"].astype(str).map(_tour_to_rank).fillna(2.0)
     d["Tour_Rank"] = d["Tour_Rank"] / 6.0  # normalize to [0, 1]
 
+    # v4 — Is_Red: already set in _to_directed_rows
+    if "Is_Red" not in d.columns:
+        d["Is_Red"] = 0
+
+    # v4 — Flag_WinRate_Diff: actual flag-era win rate per athlete
+    if not ag.athlete_flag_stats.empty:
+        flag_a = ag.athlete_flag_stats[["Nom", "Flag_WinRate"]].copy()
+        flag_b = ag.athlete_flag_stats[["Nom", "Flag_WinRate"]].rename(
+            columns={"Nom": "Opponent", "Flag_WinRate": "B_Flag_WinRate"}
+        )
+        d = d.merge(flag_a, on="Nom", how="left")
+        d = d.merge(flag_b, on="Opponent", how="left")
+        d["Flag_WinRate"] = d["Flag_WinRate"].fillna(0.5)
+        d["B_Flag_WinRate"] = d["B_Flag_WinRate"].fillna(0.5)
+        d["Flag_WinRate_Diff"] = d["Flag_WinRate"] - d["B_Flag_WinRate"]
+    else:
+        d["Flag_WinRate_Diff"] = 0.0
+
+    # v4 — Recent_5_Diff: very short-term momentum (last 5 matches)
+    if not ag.athlete_recent_5.empty:
+        r5_a = ag.athlete_recent_5.copy()
+        r5_b = ag.athlete_recent_5.rename(columns={"Nom": "Opponent", "Recent5_WinRate": "B_Recent5_WinRate"})
+        d = d.merge(r5_a, on="Nom", how="left")
+        d = d.merge(r5_b, on="Opponent", how="left")
+        d["Recent5_WinRate"] = d["Recent5_WinRate"].fillna(0.5)
+        d["B_Recent5_WinRate"] = d["B_Recent5_WinRate"].fillna(0.5)
+    else:
+        d["Recent5_WinRate"] = 0.5
+        d["B_Recent5_WinRate"] = 0.5
+    d["Recent_5_Diff"] = d["Recent5_WinRate"] - d["B_Recent5_WinRate"]
+
+    # v4 — Win_Streak_Diff: current win/loss streak (normalized by /10)
+    if not ag.athlete_streak.empty:
+        streak_a = ag.athlete_streak.copy()
+        streak_b = ag.athlete_streak.rename(columns={"Nom": "Opponent", "Win_Streak": "B_Win_Streak"})
+        d = d.merge(streak_a, on="Nom", how="left")
+        d = d.merge(streak_b, on="Opponent", how="left")
+        d["Win_Streak"] = d["Win_Streak"].fillna(0)
+        d["B_Win_Streak"] = d["B_Win_Streak"].fillna(0)
+    else:
+        d["Win_Streak"] = 0.0
+        d["B_Win_Streak"] = 0.0
+    d["Win_Streak_Diff"] = (d["Win_Streak"] - d["B_Win_Streak"]) / 10.0
+
+    # Time weight for sample weighting (more recent competitions get more weight)
+    d["_time_weight"] = d.apply(
+        lambda row: compute_time_weight(str(row.get("Competition", "")), row.get("Year")),
+        axis=1,
+    )
+
     d["y"] = d["Athlete_Win"].astype(int)
 
-    out = d[FEATURE_COLS + ["y"]].copy()
+    out = d[FEATURE_COLS + ["y", "_time_weight"]].copy()
     return out.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
 
@@ -583,7 +693,10 @@ def _train_model_and_aggs(df_in: pd.DataFrame) -> Tuple[Pipeline, Aggregates, np
 
     X = train[FEATURE_COLS].values
     y = train["y"].values
-    pipe.fit(X, y)
+
+    # Time-based sample weighting: more recent competitions get higher weight
+    sample_weights = train["_time_weight"].values if "_time_weight" in train.columns else np.ones(len(train))
+    pipe.fit(X, y, clf__sample_weight=sample_weights)
 
     n_cv = min(5, len(train))
     if len(train) >= 10 and len(np.unique(y)) > 1:
@@ -734,6 +847,33 @@ def _compute_features_for_pair(df_scope, ag, matches_scope, selected_type_compet
     continent_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Continent"], default="")
     region_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Region_monde"], default="")
 
+    # v4 — Flag WR
+    a_flag_wr = b_flag_wr = 0.5
+    if not ag.athlete_flag_stats.empty:
+        f_map = ag.athlete_flag_stats.set_index("Nom")
+        if nom_a in f_map.index:
+            a_flag_wr = float(f_map.loc[nom_a, "Flag_WinRate"])
+        if nom_b in f_map.index:
+            b_flag_wr = float(f_map.loc[nom_b, "Flag_WinRate"])
+
+    # v4 — Recent 5
+    a_recent5 = b_recent5 = 0.5
+    if not ag.athlete_recent_5.empty:
+        r5_map = ag.athlete_recent_5.set_index("Nom")
+        if nom_a in r5_map.index:
+            a_recent5 = float(r5_map.loc[nom_a, "Recent5_WinRate"])
+        if nom_b in r5_map.index:
+            b_recent5 = float(r5_map.loc[nom_b, "Recent5_WinRate"])
+
+    # v4 — Win streak
+    a_streak = b_streak = 0.0
+    if not ag.athlete_streak.empty:
+        s_map = ag.athlete_streak.set_index("Nom")
+        if nom_a in s_map.index:
+            a_streak = float(s_map.loc[nom_a, "Win_Streak"])
+        if nom_b in s_map.index:
+            b_streak = float(s_map.loc[nom_b, "Win_Streak"])
+
     return {
         "same_nation": same_nation, "same_style": same_style, "is_k1": is_k1,
         "winrate_adv": winrate_adv, "h2h_adv": h2h_adv,
@@ -749,6 +889,11 @@ def _compute_features_for_pair(df_scope, ag, matches_scope, selected_type_compet
         "exp_diff": float(np.log1p(a_total_m) - np.log1p(b_total_m)),
         "kata_diversity_diff": a_kata_div - b_kata_div,
         "continent_a": str(continent_a), "region_a": str(region_a),
+        # v4
+        "is_red": 1,
+        "flag_winrate_diff": a_flag_wr - b_flag_wr,
+        "recent_5_diff": a_recent5 - b_recent5,
+        "win_streak_diff": (a_streak - b_streak) / 10.0,
     }
 
 
@@ -794,6 +939,8 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
         if seen_index is not None and (nom_b, kata) in seen_index.index:
             b_seen = int(seen_index.loc[(nom_b, kata), "Seen_Count"] >= 1)
         is_home = int(str(base_feats["continent_a"]) == str(base_feats["region_a"]))
+        is_red = int(base_feats.get("is_red", 1))
+        flag_wr_diff = float(base_feats.get("flag_winrate_diff", 0.0))
 
         X = np.array([[
             base_feats["same_nation"], base_feats["same_style"], base_feats["is_k1"],
@@ -807,6 +954,9 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
             base_feats["note_std_diff"], base_feats["exp_diff"],
             base_feats["kata_diversity_diff"], b_seen,
             is_home, tour_rank,
+            # v4 features
+            is_red, flag_wr_diff,
+            base_feats["recent_5_diff"], base_feats["win_streak_diff"],
         ]], dtype=float)
 
         p_model = float(model.predict_proba(X)[0, 1])
@@ -844,7 +994,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 **Warning**
 - Results are **probabilities**, not absolute truth.
 - Anti-bias: if A/B have little history, probability is **pulled toward 50%** (shrinkage).
-- Model v3 integrates **22 features**: scores, ranking, head-to-head, temporal trend, recent momentum, age, favourite kata, consistency, experience, kata diversity, opponent familiarity, geographic advantage and round.
+- Model v4 integrates **27 features**: scores, ranking, head-to-head, temporal trend, recent momentum (15 & 5 matches), win streak, flag-era performance, age, favourite kata, consistency, experience, kata diversity, opponent familiarity, geographic advantage, belt color and round.
             """
         )
     else:
@@ -853,7 +1003,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 **Avertissement**
 - Les résultats sont des **probabilités**, pas une vérité absolue.
 - Anti-biais : si A/B ont peu d'historique, on **ramène la proba vers 50%** (shrinkage).
-- Le modèle v3 intègre **22 features** : notes, ranking, head-to-head, tendance temporelle, momentum récent, âge, kata favori, consistance, expérience, diversité kata, familiarité adversaire, avantage géographique et tour.
+- Le modèle v4 intègre **27 features** : notes, ranking, H2H, tendance temporelle, momentum récent (15 & 5 matchs), série en cours, performance drapeaux (2026+), âge, kata favori, consistance, expérience, diversité kata, familiarité adversaire, avantage géographique, couleur de ceinture et tour.
             """
         )
 
@@ -1020,7 +1170,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 "Log_A_Kata_N": t("Expérience de A avec ce kata"),
                 "A_Kata_Note_C": t("Note de A avec ce kata (vs moyenne)"),
                 "Note_Trend_Diff": t("Différence de tendance de notes"),
-                "Momentum_Diff": t("Différence de dynamique récente"),
+                "Momentum_Diff": t("Différence de dynamique récente (15 matchs)"),
                 "Age_Diff": t("Différence d'âge"),
                 "Is_Fav_Kata_A": t("A joue son kata favori"),
                 "Note_Std_Diff": t("Différence de régularité"),
@@ -1029,6 +1179,10 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 "B_Seen_Kata": t("B a déjà vu ce kata"),
                 "Is_Home": t("A joue à domicile (continent)"),
                 "Tour_Rank": t("Phase de compétition (poule → finale)"),
+                "Is_Red": t("A porte la ceinture rouge"),
+                "Flag_WinRate_Diff": t("Avantage win rate drapeaux (2026+)"),
+                "Recent_5_Diff": t("Momentum court terme (5 derniers matchs)"),
+                "Win_Streak_Diff": t("Différence de série en cours (victoires/défaites)"),
             }
             try:
                 coefs = model.named_steps["clf"].coef_[0]
@@ -1036,7 +1190,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 fi_df[t("Explication")] = fi_df["Feature"].map(_FEATURE_LABELS).fillna(fi_df["Feature"])
                 fi_df["Abs"] = fi_df["Coefficient"].abs()
                 fi_df = fi_df.sort_values("Abs", ascending=False).drop(columns=["Abs"])
-                st.dataframe(format_display_df(fi_df[[t("Explication"), "Feature", "Coefficient"]]), use_container_width=True)
+                st.dataframe(format_display_df(fi_df[[t("Explication"), "Feature", "Coefficient"]]), width="stretch")
             except Exception:
                 st.write(t("Impossible d'extraire les coefficients."))
 
@@ -1069,7 +1223,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                     st.markdown(f"{t('Confiance')}: {_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
 
             st.markdown(f"##### {t('Détail complet')}")
-            st.dataframe(res_df, use_container_width=True)
+            st.dataframe(res_df, width="stretch")
 
             fig = px.bar(
                 res_df, x="Kata", y="Probabilité de victoire (%)",
@@ -1079,7 +1233,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 hover_data=["Confiance (0-1)", "Diff. notes (A-B)", "Nb occ. (A, kata)"],
                 title=t("Probabilité de victoire estimée par kata (A) – sélection"),
             )
-            st.plotly_chart(fig, use_container_width=True, key="proba_kata_bar_manual")
+            st.plotly_chart(fig, width="stretch", key="proba_kata_bar_manual")
 
             st.info(t(
                 "✅ Modèle v3 — 22 features : notes, ranking, H2H, tendance temporelle, "
@@ -1106,11 +1260,11 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
                 st.subheader(t("🏆 Top 3 katas à faire"))
                 st.caption(f"{t('Source candidats')} : **{source}**")
-                st.dataframe(res_df_top.head(3), use_container_width=True)
+                st.dataframe(res_df_top.head(3), width="stretch")
 
                 fig2 = px.bar(
                     res_df_top.head(10), x="Kata", y="Probabilité de victoire (%)",
                     hover_data=["Confiance (0-1)", "Diff. notes (A-B)", "Nb occ. (A, kata)"],
                     title=t("Top katas recommandés (Top 10 affiché)"),
                 )
-                st.plotly_chart(fig2, use_container_width=True, key="proba_kata_bar_top3")
+                st.plotly_chart(fig2, width="stretch", key="proba_kata_bar_top3")

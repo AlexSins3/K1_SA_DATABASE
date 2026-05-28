@@ -9,6 +9,8 @@ from tabs.athlete_focus.charts import (
     render_kata_histogram,
     render_kiviat_tour,
     render_kiviat_kata,
+    render_flag_radar_tour,
+    render_flag_radar_kata,
 )
 from tabs.athlete_focus.history import render_history
 from utils.interpretations import show_tab_help
@@ -37,5 +39,7 @@ def show_athlete_focus_tab(data):
         render_max_tour(state)
         render_kata_histogram(state)
         render_kiviat_tour(state)
+        render_flag_radar_tour(state)
         render_kiviat_kata(state)
+        render_flag_radar_kata(state)
         render_history(state)

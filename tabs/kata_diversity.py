@@ -34,7 +34,7 @@ def show_kata_diversity_tab(data: pd.DataFrame) -> None:
     show_tab_help("kata_diversity")
 
     df = data.copy()
-    for col in ["Note", "Year"]:
+    for col in ["Note", "Year", "Drapeau"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     if "Victoire" in df.columns:
@@ -55,6 +55,15 @@ def show_kata_diversity_tab(data: pd.DataFrame) -> None:
         sel_sexe = st.selectbox(t("Sexe"), [t("Tous")] + sexes, key="div_sexe")
         if sel_sexe != t("Tous"):
             d = d[d["Sexe"] == sel_sexe]
+
+        # Year filter
+        years_avail = sorted(d["Year"].dropna().unique().tolist())
+        sel_years_div = st.multiselect(
+            t("Année(s)"), [int(y) for y in years_avail],
+            default=[int(y) for y in years_avail], key="div_years"
+        )
+        if sel_years_div:
+            d = d[d["Year"].isin([float(y) for y in sel_years_div])]
 
         min_passages = st.slider(t("Min passages par athlète"), 3, 20, 5, key="div_min")
 
@@ -121,15 +130,38 @@ def show_kata_diversity_tab(data: pd.DataFrame) -> None:
         )
         st.plotly_chart(fig_box, use_container_width=True, key="div_box_wr")
 
-        # ── Box: note by profil ──
-        st.subheader(t("Note moyenne par profil de diversité"))
-        fig_box_note = px.box(
-            ag, x="Profil", y="Note_Moy", color="Profil",
-            title=t("Spécialistes vs Polyvalents – Note moyenne"),
-            category_orders={"Profil": [t("Spécialiste (1-2)"), t("Modéré (3-4)"), t("Polyvalent (5+)")]},
-            points="all",
-        )
-        st.plotly_chart(fig_box_note, use_container_width=True, key="div_box_note")
+        # ── Box: note by profil (only if note data available) ──
+        d_notes = d.dropna(subset=["Note"])
+        if not d_notes.empty:
+            st.subheader(t("Note moyenne par profil de diversité") + f" ({t('avant 2026')})")
+            fig_box_note = px.box(
+                ag, x="Profil", y="Note_Moy", color="Profil",
+                title=t("Spécialistes vs Polyvalents – Note moyenne") + f" ({t('avant 2026')})",
+                category_orders={"Profil": [t("Spécialiste (1-2)"), t("Modéré (3-4)"), t("Polyvalent (5+)")]},
+                points="all",
+            )
+            st.plotly_chart(fig_box_note, use_container_width=True, key="div_box_note")
+
+        # ── Flag stats by profil (2026+) ──
+        d_flags = d[d["Drapeau"].notna()] if "Drapeau" in d.columns else pd.DataFrame()
+        if not d_flags.empty:
+            st.subheader(t("Statistiques drapeaux par profil") + " (2026+)")
+            flag_athlete = d_flags.groupby("Nom").agg(
+                Drapeau_Moy=("Drapeau", "mean"),
+                Win_Rate_Flag=("Victoire", "mean"),
+            ).reset_index()
+            flag_athlete["Drapeau_Moy"] = flag_athlete["Drapeau_Moy"].round(2)
+            flag_athlete["Win_Rate_Flag"] = (flag_athlete["Win_Rate_Flag"] * 100).round(1)
+            ag_f = ag.merge(flag_athlete, on="Nom", how="left")
+            ag_f = ag_f.dropna(subset=["Drapeau_Moy"])
+            if not ag_f.empty:
+                fig_flag_div = px.box(
+                    ag_f, x="Profil", y="Drapeau_Moy", color="Profil",
+                    title=t("Drapeau moy. par profil de diversité") + " (2026+)",
+                    category_orders={"Profil": [t("Spécialiste (1-2)"), t("Modéré (3-4)"), t("Polyvalent (5+)")]},
+                    points="all",
+                )
+                st.plotly_chart(fig_flag_div, use_container_width=True, key="div_box_flag")
 
         # ── Stats summary ──
         st.subheader(t("Résumé par profil"))

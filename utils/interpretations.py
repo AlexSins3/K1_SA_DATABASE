@@ -298,6 +298,39 @@ _TAB_HELP = {
 
 **Astuce coach :** Utilisez le "Top 3 katas" pour obtenir une recommandation rapide. Comparez toujours avec votre connaissance de l'athlète et de l'adversaire.
 """,
+
+    "tendances": """
+**Objectif :** Tester les idées reçues du karaté avec des données réelles et repérer les grandes tendances.
+
+**Ce que vous trouverez ici :**
+- 🥋 **Avantage ceinture rouge ?** — Test statistique réel (la ceinture influence-t-elle le résultat ?)
+- 📊 **Popularité des katas** — Quels katas montent ou descendent en fréquence d'utilisation
+- 🎂 **Performance & âge** — À quel âge est-on au pic ? Le déclin est-il réel ?
+- 📋 **Ranking vs réalité** — Le classement WKF reflète-t-il vraiment les performances en compétition ?
+- 🌍 **Domination géographique** — Quelles nations/continents dominent réellement
+- 🎯 **Spécialiste vs Polyvalent** — Faut-il maîtriser peu ou beaucoup de katas ?
+
+**Astuce coach :** Ce sont des réponses factuelles aux questions que tout le monde se pose au bord du tatami. Utilisez-les pour affiner votre stratégie.
+""",
+
+    "match_analysis": """
+**Objectif :** Analyser la structure des matchs (écarts de score, parcours d'élimination).
+
+**Deux vues disponibles :**
+- ⚔️ **Score différentiel** — Les matchs sont-ils serrés ou déséquilibrés ? Par tour, par athlète, par kata.
+- 🏔️ **Avancement par tour (funnel)** — Combien d'athlètes passent chaque tour ? Quel est le "filtre" ?
+
+**Le filtre athlète / kata (nouveau) :**
+- Sélectionnez un **athlète** pour voir uniquement ses matchs et sa marge typique
+- Sélectionnez un **kata** pour voir les marges quand ce kata est joué
+
+**Les 3 types de victoire :**
+- 🟢 **Serrée** (<0.5 pts ou 1 drapeau d'écart)
+- 🟠 **Nette** (0.5-1.5 pts ou 2-3 drapeaux)
+- 🔴 **Dominante** (>1.5 pts ou 4+ drapeaux)
+
+**Astuce coach :** Filtrez sur votre athlète + ses adversaires potentiels pour voir si les matchs sont typiquement serrés ou non.
+""",
 }
 
 
@@ -820,6 +853,39 @@ _TAB_HELP_EN = {
 **Warning:** The model is based on **history**. It cannot predict current form, injuries, stress, or a surprise strategy from an opponent.
 
 **Coach tip:** Use "Top 3 katas" for a quick recommendation. Always compare with your knowledge of the athlete and opponent.
+""",
+
+    "tendances": """
+**Purpose:** Test common karate beliefs with real data and spot major trends.
+
+**What you'll find:**
+- 🥋 **Red belt advantage?** — Real statistical test (does belt color influence results?)
+- 📊 **Kata popularity** — Which katas are rising or falling in usage frequency
+- 🎂 **Performance & age** — At what age is peak performance? Is the decline real?
+- 📋 **Ranking vs reality** — Does the WKF ranking really reflect competition performance?
+- 🌍 **Geographic dominance** — Which nations/continents truly dominate
+- 🎯 **Specialist vs Polyvalent** — Is it better to master few or many katas?
+
+**Coach tip:** These are factual answers to the questions everyone asks at the side of the tatami. Use them to refine your strategy.
+""",
+
+    "match_analysis": """
+**Purpose:** Analyze match structure (score gaps, elimination paths).
+
+**Two views available:**
+- ⚔️ **Score differential** — Are matches tight or unbalanced? By round, athlete, or kata.
+- 🏔️ **Round advancement (funnel)** — How many athletes pass each round? What's the filter?
+
+**The athlete / kata filter (new):**
+- Select an **athlete** to see only their matches and typical margin
+- Select a **kata** to see margins when that kata is performed
+
+**The 3 victory types:**
+- 🟢 **Close** (<0.5 pts or 1 flag gap)
+- 🟠 **Clear** (0.5-1.5 pts or 2-3 flags)
+- 🔴 **Dominant** (>1.5 pts or 4+ flags)
+
+**Coach tip:** Filter on your athlete + their potential opponents to see if matches are typically close or not.
 """,
 }
 

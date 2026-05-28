@@ -36,6 +36,10 @@ SA_TOUR_LABEL = {
     "PW1": "Finale de poule",
     "PW2": "Finale de poule",
     "PW3": "Finale de poule",
+    "RP1": "1er Tour repêchage",
+    "RP2": "2ème Tour repêchage",
+    "RP3": "3ème Tour repêchage",
+    "RP4": "4ème Tour repêchage",
 }
 
 SA_TOUR_ORDER = {
@@ -43,11 +47,15 @@ SA_TOUR_ORDER = {
     "2ème Tour": 2,
     "3ème Tour": 3,
     "Finale de poule": 4,
-    "Quart de finale": 5,
-    "Demi finale": 6,
-    "Place de 3": 7,
-    "Bronze": 7,
-    "Finale": 8,
+    "1er Tour repêchage": 5,
+    "2ème Tour repêchage": 6,
+    "3ème Tour repêchage": 7,
+    "4ème Tour repêchage": 8,
+    "Quart de finale": 9,
+    "Demi finale": 10,
+    "Place de 3": 11,
+    "Bronze": 11,
+    "Finale": 12,
 }
 
 # ── Kiviat (radar charts) ────────────────────────────────────────────────────
@@ -67,6 +75,10 @@ KIVIAT_TOUR_MAP = {
     "PW1": "Finale de poule",
     "PW2": "Finale de poule",
     "PW3": "Finale de poule",
+    "RP1": "Repêchage",
+    "RP2": "Repêchage",
+    "RP3": "Repêchage",
+    "RP4": "Repêchage",
 }
 
 KIVIAT_TOUR_ORDER = {
@@ -75,10 +87,11 @@ KIVIAT_TOUR_ORDER = {
     "2ème Tour": 3,
     "3ème Tour": 4,
     "Finale de poule": 5,
-    "Quart de finale": 6,
-    "Demi finale": 7,
-    "Bronze / Place de 3": 8,
-    "Finale": 9,
+    "Repêchage": 6,
+    "Quart de finale": 7,
+    "Demi finale": 8,
+    "Bronze / Place de 3": 9,
+    "Finale": 10,
 }
 
 # ── Tour type classification (ACM) ───────────────────────────────────────────
@@ -92,6 +105,10 @@ TOUR_TYPE_MAP = {
     "PW1": "Quart/Demi/Finale de poule",
     "PW2": "Quart/Demi/Finale de poule",
     "PW3": "Quart/Demi/Finale de poule",
+    "RP1": "Repêchage",
+    "RP2": "Repêchage",
+    "RP3": "Repêchage",
+    "RP4": "Repêchage",
     "Pool_1": "Tour 1",
     "T1": "Tour 1",
     "Pool_2": "Tour 2",

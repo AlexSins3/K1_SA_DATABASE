@@ -15,11 +15,9 @@ from tabs.athlete_focus import show_athlete_focus_tab
 from tabs.graphs import show_graphs_tab
 from tabs.acm import show_acm_tab
 from tabs.proba_victoire_kata import show_proba_victoire_kata_tab
-from tabs.progression import show_progression_tab
-from tabs.score_differential import show_score_differential_tab
-from tabs.continental import show_continental_tab
-from tabs.tour_advancement import show_tour_advancement_tab
-from tabs.kata_diversity import show_kata_diversity_tab
+from tabs.kata_comparison import show_kata_comparison_tab
+from tabs.match_analysis import show_match_analysis_tab
+from tabs.tendances import show_tendances_tab
 
 
 # =========================
@@ -41,7 +39,7 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     La même fonction fonctionnera pour les futures BDD
     tant que la structure des colonnes reste identique.
     """
-    df = pd.read_csv(csv_path, sep=None, engine='python', encoding='utf-8')
+    df = pd.read_csv(csv_path, sep=None, engine='python', encoding='utf-8-sig')
 
     # Normalisation de la colonne Note (virgule -> point si besoin)
     if 'Note' in df.columns and df['Note'].dtype == object:
@@ -55,6 +53,10 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     for col in ['Age', 'Ranking', 'Note', 'Year']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Conversion de la colonne Drapeau (système de drapeaux 2026+)
+    if 'Drapeau' in df.columns:
+        df['Drapeau'] = pd.to_numeric(df['Drapeau'], errors='coerce')
 
     # Conversion de Victoire en booléen si ce n'est pas déjà le cas
     if 'Victoire' in df.columns and df['Victoire'].dtype != bool:
@@ -96,49 +98,45 @@ def main():
 
     data = load_data(DATA_PATH)
 
-    # Onglets principaux
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
-        t("Dataset"),
-        t("Focus Athlète"),
-        t("Progression temporelle"),
-        t("Score différentiel"),
-        t("Analyse continentale"),
-        t("Avancement par tour"),
-        t("Diversité kata"),
-        t("Graphiques interactifs"),
-        t("ACM"),
-        t("Probabilité de victoire"),
+    # Onglets principaux — organisés par utilité
+    # Tier 1 : Préparation compétition (coach)
+    # Tier 2 : Analyse approfondie (coach curieux / data analyst)
+    # Tier 3 : Outils
+
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+        "🥋 " + t("Focus Athlète"),
+        "🎯 " + t("Probabilité de victoire"),
+        "🆚 " + t("Comparaison de katas"),
+        "🔍 " + t("Tendances & Réalités"),
+        "⚔️ " + t("Analyse des matchs"),
+        "🗺️ " + t("ACM"),
+        "📊 " + t("Exploration libre"),
+        "📋 " + t("Dataset"),
     ])
 
     with tab1:
-        show_dataset_tab(data)
-
-    with tab2:
         show_athlete_focus_tab(data)
 
+    with tab2:
+        show_proba_victoire_kata_tab(data)
+
     with tab3:
-        show_progression_tab(data)
+        show_kata_comparison_tab(data)
 
     with tab4:
-        show_score_differential_tab(data)
+        show_tendances_tab(data)
 
     with tab5:
-        show_continental_tab(data)
+        show_match_analysis_tab(data)
 
     with tab6:
-        show_tour_advancement_tab(data)
-
-    with tab7:
-        show_kata_diversity_tab(data)
-
-    with tab8:
-        show_graphs_tab(data)
-
-    with tab9:
         show_acm_tab(data)
 
-    with tab10:
-        show_proba_victoire_kata_tab(data)
+    with tab7:
+        show_graphs_tab(data)
+
+    with tab8:
+        show_dataset_tab(data)
 
     # Glossaire dans la sidebar
     show_glossaire()

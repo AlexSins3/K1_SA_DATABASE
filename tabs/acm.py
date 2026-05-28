@@ -11,7 +11,7 @@ import prince
 from constants.tours import classify_tour_type
 from utils.ui import filter_panel_open, filter_panel_close
 from utils.data_helpers import normalize_victoire_category
-from utils.interpretations import show_tab_help
+from utils.interpretations import show_tab_help, _color_badge
 from utils.lang import t, get_lang
 
 
@@ -54,6 +54,19 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             data_acm_filtered = data_acm_filtered[data_acm_filtered["Type_Compet"] == "K1"]
         elif selected_type_compet == "Series A (SA)":
             data_acm_filtered = data_acm_filtered[data_acm_filtered["Type_Compet"] == "SA"]
+
+        # ── Année(s) ──
+        if "Year" in data_acm_filtered.columns:
+            years_acm = sorted(pd.to_numeric(data_acm_filtered["Year"], errors="coerce").dropna().unique().tolist())
+            if years_acm:
+                sel_years_acm = st.multiselect(
+                    t("Année(s)"), [int(y) for y in years_acm],
+                    default=[int(y) for y in years_acm], key="acm_years"
+                )
+                if sel_years_acm:
+                    data_acm_filtered = data_acm_filtered[
+                        pd.to_numeric(data_acm_filtered["Year"], errors="coerce").isin([float(y) for y in sel_years_acm])
+                    ]
 
         # ── Type de Tour ──
         data_acm_filtered["Type de Tour"] = data_acm_filtered["N_Tour"].apply(classify_tour_type)
@@ -107,10 +120,16 @@ def show_acm_tab(data: pd.DataFrame) -> None:
                 ambiguous_except_suparinpei = ambiguous_katas[ambiguous_katas.index != "Suparinpei"]
 
                 if not ambiguous_except_suparinpei.empty:
-                    msg = (
-                        "Erreur : certains katas sont associés à plusieurs styles "
-                        "(ce n'est pas autorisé, sauf pour **Suparinpei**) : "
-                    )
+                    if get_lang() == "en":
+                        msg = (
+                            "Error: some katas are associated with multiple styles "
+                            "(not allowed, except for **Suparinpei**): "
+                        )
+                    else:
+                        msg = (
+                            "Erreur : certains katas sont associés à plusieurs styles "
+                            "(ce n'est pas autorisé, sauf pour **Suparinpei**) : "
+                        )
                     msg += ", ".join(
                         f"{kata} ({'/'.join(styles)})" for kata, styles in ambiguous_except_suparinpei.items()
                     )
@@ -213,7 +232,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
         if "Nom" in data_acm_filtered.columns:
             names_for_rows = data_acm_filtered.loc[data_mca.index, "Nom"].astype(object)
-            names_for_rows = names_for_rows.where(names_for_rows.notna(), "Inconnu").astype(str)
+            names_for_rows = names_for_rows.where(names_for_rows.notna(), t("Inconnu")).astype(str)
         else:
             names_for_rows = data_mca.index.astype(str)
 
@@ -247,16 +266,17 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             for var in mca_variables:
                 label = var_labels[var]
                 vc = modalities_coords[modalities_coords["Variable"] == var]
+                _trace_name = f"Modalities of {label}" if get_lang() == "en" else f"Modalités de {label}"
                 fig.add_trace(go.Scatter(
                     x=vc[0], y=vc[1], mode="markers+text",
-                    name=f"Modalités de {label}", text=vc["Modalité"],
+                    name=_trace_name, text=vc["Modalité"],
                     textposition="top center", marker=dict(size=10),
                 ))
 
         if display_individuals:
             fig.add_trace(go.Scatter(
                 x=individuals_coords[0], y=individuals_coords[1], mode="markers",
-                name="Individus", marker=dict(size=5, color="grey", opacity=0.5),
+                name=t("Individus"), marker=dict(size=5, color="grey", opacity=0.5),
                 text=names_for_rows, hoverinfo="text",
             ))
 
@@ -282,15 +302,30 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         fig.add_shape(type="line", x0=x_min, y0=0, x1=x_max, y1=0, line=dict(color="black", width=1))
         fig.add_shape(type="line", x0=0, y0=y_min, x1=0, y1=y_max, line=dict(color="black", width=1))
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
-        # ── Interpretation ──
+        # ── Qualité de la carte ──
+        total_explained_pct = (explained_inertia[0] + explained_inertia[1]) * 100
+        if total_explained_pct >= 50:
+            quality_badge = _color_badge(f"{total_explained_pct:.1f}% — {t('Bonne qualité')}", "green")
+        elif total_explained_pct >= 30:
+            quality_badge = _color_badge(f"{total_explained_pct:.1f}% — {t('Qualité correcte')}", "orange")
+        else:
+            quality_badge = _color_badge(f"{total_explained_pct:.1f}% — {t('Qualité faible')}", "red")
+        st.markdown(f"**{t('Inertie captée par les 2 axes')}** : {quality_badge}", unsafe_allow_html=True)
+
+        # ── Key findings (always visible) ──
+        st.subheader("🔑 " + t("Résultats clés"))
+        _render_key_findings(modalities_coords, mca_variables)
+
+        # ── Detailed interpretation (expandable) ──
         st.subheader(t("Interprétation de l'ACM"))
 
-        if st.button(t("Interpréter automatiquement l'ACM"), key="acm_interpret"):
+        with st.expander(t("📖 Interprétation détaillée"), expanded=False):
             interpretation = _interpret_acm(mca, data_mca, mca_variables)
             st.markdown(interpretation)
-        else:
+
+        with st.expander(t("💡 Comment lire cette carte ?"), expanded=False):
             if get_lang() == "en":
                 st.markdown(
                     """
@@ -353,6 +388,59 @@ def show_acm_tab(data: pd.DataFrame) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Key findings — always visible summary
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _render_key_findings(modalities_coords, mca_vars):
+    """Display a quick summary: katas closest to Victory=True and Victory=False."""
+    kata_coords = modalities_coords[modalities_coords["Variable"] == "Kata"].copy()
+    victoire_coords = modalities_coords[modalities_coords["Variable"] == "Victoire_norm"].copy()
+
+    if kata_coords.empty or victoire_coords.empty:
+        st.info(t("Pas assez de données pour extraire les résultats clés."))
+        return
+
+    # Find True/False modalities
+    mods_lower = victoire_coords["Modalité"].astype(str).str.strip().str.lower()
+    vic_true = victoire_coords[mods_lower.isin(["true", "1", "vrai", "oui"])]
+    vic_false = victoire_coords[mods_lower.isin(["false", "0", "faux", "non"])]
+
+    if vic_true.empty or vic_false.empty:
+        st.info(t("Modalités Victoire True/False non identifiables."))
+        return
+
+    vt = vic_true.iloc[0]
+    vf = vic_false.iloc[0]
+
+    # Distance de chaque kata à True et False
+    kata_coords["Dist_True"] = np.sqrt((kata_coords[0] - vt[0]) ** 2 + (kata_coords[1] - vt[1]) ** 2)
+    kata_coords["Dist_False"] = np.sqrt((kata_coords[0] - vf[0]) ** 2 + (kata_coords[1] - vf[1]) ** 2)
+    kata_coords["Score"] = kata_coords["Dist_False"] - kata_coords["Dist_True"]
+    kata_coords = kata_coords.sort_values("Score", ascending=False)
+
+    col_win, col_lose = st.columns(2)
+    with col_win:
+        st.markdown(f"**🏆 {t('Katas associés à la victoire')}**")
+        for _, row in kata_coords.head(5).iterrows():
+            st.markdown(f"- {row['Modalité']}")
+    with col_lose:
+        st.markdown(f"**❌ {t('Katas associés à la défaite')}**")
+        for _, row in kata_coords.tail(5).iterrows():
+            st.markdown(f"- {row['Modalité']}")
+
+    # Tours associés
+    tour_coords = modalities_coords[modalities_coords["Variable"] == "N_Tour"].copy()
+    if not tour_coords.empty:
+        tour_coords["Dist_True"] = np.sqrt((tour_coords[0] - vt[0]) ** 2 + (tour_coords[1] - vt[1]) ** 2)
+        tour_coords["Dist_False"] = np.sqrt((tour_coords[0] - vf[0]) ** 2 + (tour_coords[1] - vf[1]) ** 2)
+        tour_coords["Score"] = tour_coords["Dist_False"] - tour_coords["Dist_True"]
+        tour_coords = tour_coords.sort_values("Score", ascending=False)
+
+        st.markdown(f"**🏟️ {t('Tours les plus associés à la victoire')}** : "
+                    f"{', '.join(tour_coords.head(3)['Modalité'].tolist())}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Automatic interpretation (extracted from the original inline function)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -362,18 +450,25 @@ _FALSE_LIKE = {"false", "0", "faux", "non", "n", "no"}
 
 def _interpret_acm(mca_obj, data_mca_local, mca_vars):
     output = StringIO()
+    _en = get_lang() == "en"
 
     # 1. Variance explained
     eigen = mca_obj.eigenvalues_
     total_inertie = eigen.sum()
     explained = eigen / total_inertie
 
-    output.write("### 1. Variance expliquée par les dimensions\n\n")
-    for i, eig in enumerate(explained):
-        output.write(f"- Dimension {i + 1} : **{eig * 100:.2f}%** de la variance expliquée.\n")
-
-    output.write("\n---\n")
-    output.write("### 2. Association des katas avec la victoire / défaite\n\n")
+    if _en:
+        output.write("### 1. Variance explained by dimensions\n\n")
+        for i, eig in enumerate(explained):
+            output.write(f"- Dimension {i + 1}: **{eig * 100:.2f}%** of explained variance.\n")
+        output.write("\n---\n")
+        output.write("### 2. Kata association with victory / defeat\n\n")
+    else:
+        output.write("### 1. Variance expliquée par les dimensions\n\n")
+        for i, eig in enumerate(explained):
+            output.write(f"- Dimension {i + 1} : **{eig * 100:.2f}%** de la variance expliquée.\n")
+        output.write("\n---\n")
+        output.write("### 2. Association des katas avec la victoire / défaite\n\n")
 
     coords = mca_obj.column_coordinates(data_mca_local)
     coords.columns = [f"Dim_{i + 1}" for i in range(coords.shape[1])]
@@ -395,10 +490,16 @@ def _interpret_acm(mca_obj, data_mca_local, mca_vars):
     victoire_coords = coords[coords["Variable"] == "Victoire_norm"].copy()
 
     if victoire_coords.empty:
-        output.write(
-            "Impossible d'identifier les modalités de la variable `Victoire` "
-            "dans cette configuration (après filtrage et normalisation).\n\n"
-        )
+        if _en:
+            output.write(
+                "Unable to identify the modalities of the `Victory` variable "
+                "in this configuration (after filtering and normalization).\n\n"
+            )
+        else:
+            output.write(
+                "Impossible d'identifier les modalités de la variable `Victoire` "
+                "dans cette configuration (après filtrage et normalisation).\n\n"
+            )
     else:
         mods_raw = victoire_coords["Modalité"].astype(str).str.strip().str.lower()
         idx_raw_lower = victoire_coords["Index_raw"].astype(str).str.strip().str.lower()
@@ -414,57 +515,100 @@ def _interpret_acm(mca_obj, data_mca_local, mca_vars):
         vic_false = victoire_coords[victoire_coords["is_false"]]
 
         if not vic_true.empty and not vic_false.empty:
-            _write_full_proximity(output, kata_coords, vic_true.iloc[0], vic_false.iloc[0])
+            _write_full_proximity(output, kata_coords, vic_true.iloc[0], vic_false.iloc[0], _en)
         elif not vic_true.empty:
-            output.write(
-                "Avec les filtres actuels, les combats observés sont quasiment "
-                "tous du côté **`Victoire = True`** (aucune modalité claire `False`).\n\n"
-                "On peut tout de même lister les katas les plus proches de cette modalité de victoire :\n\n"
-            )
-            _write_distance_to_single(output, kata_coords, vic_true.iloc[0], "Victoire = True")
+            if _en:
+                output.write(
+                    "With current filters, observed matches are almost all on the "
+                    "**`Victory = True`** side (no clear `False` modality).\n\n"
+                    "We can still list the katas closest to this victory modality:\n\n"
+                )
+            else:
+                output.write(
+                    "Avec les filtres actuels, les combats observés sont quasiment "
+                    "tous du côté **`Victoire = True`** (aucune modalité claire `False`).\n\n"
+                    "On peut tout de même lister les katas les plus proches de cette modalité de victoire :\n\n"
+                )
+            _write_distance_to_single(output, kata_coords, vic_true.iloc[0], "Victoire = True", _en)
         elif not vic_false.empty:
-            output.write(
-                "Avec les filtres actuels, les combats observés sont quasiment "
-                "tous du côté **`Victoire = False`** (aucune modalité claire `True`).\n\n"
-                "On peut tout de même lister les katas les plus proches de cette modalité de défaite :\n\n"
-            )
-            _write_distance_to_single(output, kata_coords, vic_false.iloc[0], "Victoire = False")
+            if _en:
+                output.write(
+                    "With current filters, observed matches are almost all on the "
+                    "**`Victory = False`** side (no clear `True` modality).\n\n"
+                    "We can still list the katas closest to this defeat modality:\n\n"
+                )
+            else:
+                output.write(
+                    "Avec les filtres actuels, les combats observés sont quasiment "
+                    "tous du côté **`Victoire = False`** (aucune modalité claire `True`).\n\n"
+                    "On peut tout de même lister les katas les plus proches de cette modalité de défaite :\n\n"
+                )
+            _write_distance_to_single(output, kata_coords, vic_false.iloc[0], "Victoire = False", _en)
         else:
-            output.write(
-                "Les modalités de la variable `Victoire` ne peuvent pas être "
-                "reliées clairement à `True` ou `False`.\n\n"
-                "On peut toutefois repérer les katas les plus **extrêmes sur la Dimension 1** :\n\n"
-            )
+            if _en:
+                output.write(
+                    "The modalities of the `Victory` variable cannot be clearly "
+                    "linked to `True` or `False`.\n\n"
+                    "We can however identify the most **extreme katas on Dimension 1**:\n\n"
+                )
+            else:
+                output.write(
+                    "Les modalités de la variable `Victoire` ne peuvent pas être "
+                    "reliées clairement à `True` ou `False`.\n\n"
+                    "On peut toutefois repérer les katas les plus **extrêmes sur la Dimension 1** :\n\n"
+                )
             if not kata_coords.empty:
                 kata_ext = kata_coords.copy()
                 kata_ext["Abs_Dim1"] = kata_ext["Dim_1"].abs()
                 kata_ext = kata_ext.sort_values("Abs_Dim1", ascending=False)
                 for _, row in kata_ext.head(5).iterrows():
-                    sens = "côté positif" if row["Dim_1"] >= 0 else "côté négatif"
-                    output.write(f"- **{row['Modalité']}** (fortement positionné sur la Dimension 1, {sens}).\n")
+                    if _en:
+                        sens = "positive side" if row["Dim_1"] >= 0 else "negative side"
+                        output.write(f"- **{row['Modalité']}** (strongly positioned on Dimension 1, {sens}).\n")
+                    else:
+                        sens = "côté positif" if row["Dim_1"] >= 0 else "côté négatif"
+                        output.write(f"- **{row['Modalité']}** (fortement positionné sur la Dimension 1, {sens}).\n")
 
     output.write("\n---\n")
-    output.write("### 3. Comment lire ces résultats (version vulgarisée)\n\n")
-    output.write(
-        "- Chaque **point** sur le graphique représente soit une **modalité** "
-        "(par ex. un kata, un tour, True/False pour la victoire), soit un **combat** "
-        "(si les individus sont affichés).\n"
-        "- Quand deux modalités sont **proches**, cela signifie qu'elles apparaissent "
-        "**souvent ensemble** dans les mêmes combats.\n"
-        "- Par exemple, si un kata est positionné près de la modalité "
-        "**`Victoire = True`**, cela suggère que ce kata est plus souvent associé "
-        "à des combats **gagnés**.\n"
-        "- À l'inverse, s'il est situé près de **`Victoire = False`**, il semble "
-        "davantage associé à des **défaites**.\n\n"
-        "> ⚠️ Attention : l'ACM met en évidence des **associations statistiques**, "
-        "pas une relation de cause à effet. Un kata proche de `Victoire = True` ne "
-        "fait pas \"gagner\" à lui seul, il est simplement **fréquent** dans les combats gagnés.\n"
-    )
+    if _en:
+        output.write("### 3. How to read these results (simplified)\n\n")
+        output.write(
+            "- Each **point** on the chart represents either a **modality** "
+            "(e.g. a kata, a round, True/False for victory), or a **match** "
+            "(if individuals are displayed).\n"
+            "- When two modalities are **close**, it means they appear "
+            "**often together** in the same matches.\n"
+            "- For example, if a kata is positioned near the modality "
+            "**`Victory = True`**, it suggests this kata is more often associated "
+            "with **won** matches.\n"
+            "- Conversely, if it is near **`Victory = False`**, it seems "
+            "more associated with **defeats**.\n\n"
+            "> ⚠️ Note: MCA highlights **statistical associations**, "
+            "not cause and effect. A kata close to `Victory = True` does not "
+            "\"win\" on its own, it is simply **frequent** in won matches.\n"
+        )
+    else:
+        output.write("### 3. Comment lire ces résultats (version vulgarisée)\n\n")
+        output.write(
+            "- Chaque **point** sur le graphique représente soit une **modalité** "
+            "(par ex. un kata, un tour, True/False pour la victoire), soit un **combat** "
+            "(si les individus sont affichés).\n"
+            "- Quand deux modalités sont **proches**, cela signifie qu'elles apparaissent "
+            "**souvent ensemble** dans les mêmes combats.\n"
+            "- Par exemple, si un kata est positionné près de la modalité "
+            "**`Victoire = True`**, cela suggère que ce kata est plus souvent associé "
+            "à des combats **gagnés**.\n"
+            "- À l'inverse, s'il est situé près de **`Victoire = False`**, il semble "
+            "davantage associé à des **défaites**.\n\n"
+            "> ⚠️ Attention : l'ACM met en évidence des **associations statistiques**, "
+            "pas une relation de cause à effet. Un kata proche de `Victoire = True` ne "
+            "fait pas \"gagner\" à lui seul, il est simplement **fréquent** dans les combats gagnés.\n"
+        )
 
     return output.getvalue()
 
 
-def _write_full_proximity(output, kata_coords, victoire_true, victoire_false):
+def _write_full_proximity(output, kata_coords, victoire_true, victoire_false, _en=False):
     kata_coords = kata_coords.copy()
     kata_coords["Distance_to_Victoire_True"] = np.sqrt(
         (kata_coords["Dim_1"] - victoire_true["Dim_1"]) ** 2
@@ -477,16 +621,22 @@ def _write_full_proximity(output, kata_coords, victoire_true, victoire_false):
     kata_coords["Proximity"] = kata_coords["Distance_to_Victoire_False"] - kata_coords["Distance_to_Victoire_True"]
     kata_coords = kata_coords.sort_values("Proximity", ascending=True)
 
-    output.write("Les katas les plus proches de **Victoire = True** (potentiellement associés aux victoires) :\n\n")
+    if _en:
+        output.write("Katas closest to **Victory = True** (potentially associated with victories):\n\n")
+    else:
+        output.write("Les katas les plus proches de **Victoire = True** (potentiellement associés aux victoires) :\n\n")
     for _, row in kata_coords.head(5).iterrows():
-        output.write(f"- **{row['Modalité']}** (proximité = {row['Proximity']:.2f})\n")
+        output.write(f"- **{row['Modalité']}** (proximity = {row['Proximity']:.2f})\n")
 
-    output.write("\nLes katas les plus proches de **Victoire = False** (potentiellement associés aux défaites) :\n\n")
+    if _en:
+        output.write("\nKatas closest to **Victory = False** (potentially associated with defeats):\n\n")
+    else:
+        output.write("\nLes katas les plus proches de **Victoire = False** (potentiellement associés aux défaites) :\n\n")
     for _, row in kata_coords.tail(5).iterrows():
-        output.write(f"- **{row['Modalité']}** (proximité = {row['Proximity']:.2f})\n")
+        output.write(f"- **{row['Modalité']}** (proximity = {row['Proximity']:.2f})\n")
 
 
-def _write_distance_to_single(output, kata_coords, ref_point, label):
+def _write_distance_to_single(output, kata_coords, ref_point, label, _en=False):
     kata_coords = kata_coords.copy()
     kata_coords["Distance"] = np.sqrt(
         (kata_coords["Dim_1"] - ref_point["Dim_1"]) ** 2
@@ -494,4 +644,7 @@ def _write_distance_to_single(output, kata_coords, ref_point, label):
     )
     kata_coords = kata_coords.sort_values("Distance", ascending=True)
     for _, row in kata_coords.head(5).iterrows():
-        output.write(f"- **{row['Modalité']}** (proche de {label})\n")
+        if _en:
+            output.write(f"- **{row['Modalité']}** (close to {label})\n")
+        else:
+            output.write(f"- **{row['Modalité']}** (proche de {label})\n")
