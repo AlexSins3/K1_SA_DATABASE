@@ -70,19 +70,29 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
 
         # Années
         years_avail = sorted(d["Year"].dropna().unique().tolist())
+        years_opts = [int(y) for y in years_avail]
+        # Garder les années déjà sélectionnées qui sont encore valides
+        if "kcomp_years" in st.session_state:
+            st.session_state["kcomp_years"] = [
+                y for y in st.session_state["kcomp_years"] if y in years_opts
+            ]
         sel_years = st.multiselect(
-            t("Année(s)"), [int(y) for y in years_avail],
-            default=[int(y) for y in years_avail], key="kcomp_years"
+            t("Année(s)"), years_opts,
+            default=years_opts, key="kcomp_years"
         )
         if sel_years:
             d = d[d["Year"].isin([float(y) for y in sel_years])]
 
         # Sélection des katas à comparer
         katas_available = sorted(d["Kata"].dropna().unique().tolist())
+        # Garder les katas déjà sélectionnés qui sont encore disponibles
+        if "kcomp_katas" in st.session_state:
+            st.session_state["kcomp_katas"] = [
+                k for k in st.session_state["kcomp_katas"] if k in katas_available
+            ]
         sel_katas = st.multiselect(
             t("Katas à comparer"),
             katas_available,
-            default=[],
             max_selections=6,
             key="kcomp_katas",
         )
@@ -191,17 +201,42 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
             note_tour = sub_notes.groupby(["Kata", "N_Tour"], observed=True)["Note"].mean().reset_index()
             note_tour["Note"] = note_tour["Note"].round(2)
             note_tour["_rank"] = note_tour["N_Tour"].apply(_tour_rank)
-            note_tour = note_tour.sort_values(["Kata", "_rank"])
-            note_tour["Tour_Display"] = note_tour["N_Tour"].apply(fmt_tour)
 
-            fig_note_tour = px.line(
-                note_tour, x="Tour_Display", y="Note", color="Kata",
-                markers=True,
+            # Index séquentiel (espacement uniforme) pour tous les tours présents
+            all_tours_in_data = sorted(note_tour["N_Tour"].unique(), key=_tour_rank)
+            tour_to_pos = {tour: i for i, tour in enumerate(all_tours_in_data)}
+            tour_labels = [fmt_tour(t_val) for t_val in all_tours_in_data]
+
+            fig_note_tour = go.Figure()
+            for kata in sel_katas:
+                df_k = note_tour[note_tour["Kata"] == kata]
+                if not df_k.empty:
+                    # Construire x/y et trier par position (bypass pandas sort)
+                    x_pos = df_k["N_Tour"].map(tour_to_pos).tolist()
+                    y_vals = df_k["Note"].tolist()
+                    labels = [fmt_tour(t) for t in df_k["N_Tour"].tolist()]
+                    sorted_data = sorted(zip(x_pos, y_vals, labels), key=lambda p: p[0])
+                    x_sorted = [p[0] for p in sorted_data]
+                    y_sorted = [p[1] for p in sorted_data]
+                    labels_sorted = [p[2] for p in sorted_data]
+                    fig_note_tour.add_trace(go.Scatter(
+                        x=x_sorted, y=y_sorted,
+                        mode="lines+markers", name=kata,
+                        text=labels_sorted,
+                        hovertemplate="%{text}<br>Note: %{y:.2f}<extra>%{fullData.name}</extra>",
+                    ))
+            fig_note_tour.update_layout(
                 title=t("Note moyenne par tour"),
-                labels={"Tour_Display": t("Tour"), "Note": t("Note moyenne")},
-                category_orders={"Tour_Display": tour_order_display, "Kata": sel_katas},
+                xaxis_title=t("Tour"),
+                yaxis_title=t("Note moyenne"),
+                xaxis={
+                    "type": "linear",
+                    "tickmode": "array",
+                    "tickvals": list(range(len(all_tours_in_data))),
+                    "ticktext": tour_labels,
+                },
             )
-            st.plotly_chart(fig_note_tour, width="stretch", key="kcomp_note_tour")
+            st.plotly_chart(fig_note_tour, use_container_width=True, key="kcomp_note_tour")
 
         # ═══════════════════════════════════════════════════════════════
         # Popularité (nombre d'utilisations) dans le temps
@@ -211,14 +246,21 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
 
         usage_year = sub.groupby(["Kata", "Year"], observed=True).size().reset_index(name="Passages")
         if len(usage_year["Year"].unique()) > 1:
-            fig_usage = px.line(
-                usage_year, x="Year", y="Passages", color="Kata",
-                markers=True,
+            fig_usage = go.Figure()
+            for kata in sel_katas:
+                df_k = usage_year[usage_year["Kata"] == kata]
+                if not df_k.empty:
+                    pairs = sorted(zip(df_k["Year"].tolist(), df_k["Passages"].tolist()), key=lambda p: p[0])
+                    fig_usage.add_trace(go.Scatter(
+                        x=[p[0] for p in pairs], y=[p[1] for p in pairs],
+                        mode="lines+markers", name=kata,
+                    ))
+            fig_usage.update_layout(
                 title=t("Nombre de passages par année"),
-                labels={"Year": t("Année"), "Passages": t("Passages")},
-                category_orders={"Kata": sel_katas},
+                xaxis_title=t("Année"),
+                yaxis_title=t("Passages"),
+                xaxis={"dtick": 1, "tickformat": "d"},
             )
-            fig_usage.update_xaxes(dtick=1, tickformat="d")
             st.plotly_chart(fig_usage, width="stretch", key="kcomp_usage_year")
         else:
             usage_display = usage_year[["Kata", "Passages"]].sort_values("Passages", ascending=False)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from utils.ui import filter_panel_open, filter_panel_close
@@ -134,14 +135,23 @@ def show_tendances_tab(data: pd.DataFrame) -> None:
             belt_year = d_belt.groupby(["Year", "Ceinture"], observed=True)["Win"].mean().reset_index()
             belt_year["Win_Rate"] = (belt_year["Win"] * 100).round(1)
             if len(belt_year["Year"].unique()) > 1:
-                fig_belt = px.line(
-                    belt_year, x="Year", y="Win_Rate", color="Ceinture",
-                    markers=True, color_discrete_map={"R": "#dc3545", "B": "#0d6efd"},
-                    title=t("Évolution avantage ceinture par année"),
-                    labels={"Win_Rate": "Win rate (%)", "Year": t("Année")},
-                )
+                _color_map = {"R": "#dc3545", "B": "#0d6efd"}
+                fig_belt = go.Figure()
+                for ceinture in ["R", "B"]:
+                    df_c = belt_year[belt_year["Ceinture"] == ceinture]
+                    if not df_c.empty:
+                        pairs = sorted(zip(df_c["Year"].tolist(), df_c["Win_Rate"].tolist()), key=lambda p: p[0])
+                        fig_belt.add_trace(go.Scatter(
+                            x=[p[0] for p in pairs], y=[p[1] for p in pairs],
+                            mode="lines+markers", name=ceinture,
+                            line=dict(color=_color_map[ceinture]),
+                        ))
                 fig_belt.add_hline(y=50, line_dash="dash", line_color="gray", annotation_text="50%")
-                fig_belt.update_xaxes(dtick=1, tickformat="d")
+                fig_belt.update_layout(
+                    title=t("Évolution avantage ceinture par année"),
+                    xaxis_title=t("Année"), yaxis_title="Win rate (%)",
+                    xaxis={"dtick": 1, "tickformat": "d"},
+                )
                 st.plotly_chart(fig_belt, width="stretch", key="tend_belt_year")
 
         # ══════════════════════════════════════════════════════════════════════
@@ -184,23 +194,30 @@ def show_tendances_tab(data: pd.DataFrame) -> None:
         if top_katas and len(kata_year["Year"].unique()) > 1:
             kata_year_top = kata_year[kata_year["Kata"].isin(top_katas)]
 
-            if view_mode == t("Part relative (%)"):
-                fig_pop = px.line(
-                    kata_year_top, x="Year", y="Part (%)", color="Kata",
-                    markers=True,
-                    title=t("Part relative des katas les plus joués par année"),
-                    labels={"Part (%)": t("Part des passages (%)"), "Year": t("Année")},
-                )
-            else:
-                fig_pop = px.line(
-                    kata_year_top, x="Year", y="Win_Rate", color="Kata",
-                    markers=True,
-                    title=t("Win rate des katas les plus joués par année"),
-                    labels={"Win_Rate": "Win rate (%)", "Year": t("Année")},
-                )
-                fig_pop.add_hline(y=50, line_dash="dash", line_color="gray", annotation_text="50%")
+            y_col = "Part (%)" if view_mode == t("Part relative (%)") else "Win_Rate"
+            title = (t("Part relative des katas les plus joués par année")
+                     if view_mode == t("Part relative (%)")
+                     else t("Win rate des katas les plus joués par année"))
+            y_label = (t("Part des passages (%)")
+                       if view_mode == t("Part relative (%)")
+                       else "Win rate (%)")
 
-            fig_pop.update_xaxes(dtick=1, tickformat="d")
+            fig_pop = go.Figure()
+            for kata in top_katas:
+                df_k = kata_year_top[kata_year_top["Kata"] == kata]
+                if not df_k.empty:
+                    pairs = sorted(zip(df_k["Year"].tolist(), df_k[y_col].tolist()), key=lambda p: p[0])
+                    fig_pop.add_trace(go.Scatter(
+                        x=[p[0] for p in pairs], y=[p[1] for p in pairs],
+                        mode="lines+markers", name=kata,
+                    ))
+            if view_mode != t("Part relative (%)"):
+                fig_pop.add_hline(y=50, line_dash="dash", line_color="gray", annotation_text="50%")
+            fig_pop.update_layout(
+                title=title,
+                xaxis_title=t("Année"), yaxis_title=y_label,
+                xaxis={"dtick": 1, "tickformat": "d"},
+            )
             st.plotly_chart(fig_pop, width="stretch", key="tend_kata_pop")
 
             # Katas en hausse / en baisse (dynamique entre deux dernières années)

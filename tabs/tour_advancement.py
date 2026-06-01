@@ -178,7 +178,11 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                         tc_k1_notes = _build_tour_counts(sub_k1_n).dropna(subset=["Note moy."])
                         tc_k1_notes["Tour_Display"] = tc_k1_notes["Tour"].apply(fmt_tour)
                         if not tc_k1_notes.empty:
-                            fig_n_k1 = px.line(tc_k1_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – K1"))
+                            fig_n_k1 = go.Figure(go.Scatter(
+                                x=tc_k1_notes["Tour_Display"], y=tc_k1_notes["Note moy."],
+                                mode="lines+markers",
+                            ))
+                            fig_n_k1.update_layout(title=t("Note moy. par tour – K1"))
                             st.plotly_chart(fig_n_k1, use_container_width=True, key="adv_notes_k1")
                 with col_san:
                     st.markdown("**SA**")
@@ -186,7 +190,11 @@ def show_tour_advancement_tab(data: pd.DataFrame) -> None:
                         tc_sa_notes = _build_tour_counts(sub_sa_n).dropna(subset=["Note moy."])
                         tc_sa_notes["Tour_Display"] = tc_sa_notes["Tour"].apply(fmt_tour)
                         if not tc_sa_notes.empty:
-                            fig_n_sa = px.line(tc_sa_notes, x="Tour_Display", y="Note moy.", markers=True, title=t("Note moy. par tour – SA"))
+                            fig_n_sa = go.Figure(go.Scatter(
+                                x=tc_sa_notes["Tour_Display"], y=tc_sa_notes["Note moy."],
+                                mode="lines+markers",
+                            ))
+                            fig_n_sa.update_layout(title=t("Note moy. par tour – SA"))
                             st.plotly_chart(fig_n_sa, use_container_width=True, key="adv_notes_sa")
 
         with tab_adv_flags:

@@ -105,19 +105,29 @@ def show_progression_tab(data: pd.DataFrame) -> None:
             # Keep only competition labels that appear in global chrono order
             compet_order = [c for c in _chrono_order if c in agg["Compet_Label"].values]
 
+            # Sort by chronological order for correct line drawing
+            agg["_order"] = agg["Compet_Label"].map({c: i for i, c in enumerate(compet_order)})
+            agg = agg.sort_values(["Nom", "_order"]).drop(columns=["_order"])
+
             if show_rolling:
                 agg["Note_Rolling"] = agg.groupby("Nom")["Note_Moy"].transform(
                     lambda s: s.rolling(3, min_periods=1).mean()
                 )
 
-            fig = px.line(
-                agg, x="Compet_Label", y="Note_Moy", color="Nom",
-                markers=True,
-                hover_data=["Note_Max", "Nb_Passages"],
-                title=t("Évolution de la note moyenne par compétition"),
-                labels={"Note_Moy": t("Note moyenne"), "Compet_Label": t("Compétition")},
-                category_orders={"Compet_Label": compet_order},
-            )
+            _order_map = {c: i for i, c in enumerate(compet_order)}
+
+            fig = go.Figure()
+            for nom in sel_athletes:
+                d_a = agg[agg["Nom"] == nom]
+                if not d_a.empty:
+                    orders = [_order_map.get(c, 999) for c in d_a["Compet_Label"]]
+                    rows = sorted(zip(orders, d_a["Compet_Label"], d_a["Note_Moy"], d_a["Note_Max"], d_a["Nb_Passages"]), key=lambda r: r[0])
+                    fig.add_trace(go.Scatter(
+                        x=[r[1] for r in rows], y=[r[2] for r in rows],
+                        mode="lines+markers", name=nom,
+                        customdata=[[r[3], r[4]] for r in rows],
+                        hovertemplate="%{x}<br>Note moy: %{y:.2f}<br>Note max: %{customdata[0]:.2f}<br>Passages: %{customdata[1]}<extra>%{fullData.name}</extra>",
+                    ))
 
             # ── Benchmark: moyenne du circuit (optionnel) ──
             if show_benchmark:
@@ -143,16 +153,24 @@ def show_progression_tab(data: pd.DataFrame) -> None:
                     d_a = agg[agg["Nom"] == nom]
                     if d_a.empty:
                         continue
+                    orders = [_order_map.get(c, 999) for c in d_a["Compet_Label"]]
+                    rows = sorted(zip(orders, d_a["Compet_Label"], d_a["Note_Rolling"]), key=lambda r: r[0])
                     base_color = color_map.get(nom, None)
                     fig.add_trace(go.Scatter(
-                        x=d_a["Compet_Label"], y=d_a["Note_Rolling"],
+                        x=[r[1] for r in rows], y=[r[2] for r in rows],
                         mode="lines", line=dict(dash="dash", width=1, color=base_color),
                         name=f"{nom} (moy. mobile)",
                         showlegend=False,
                         legendgroup=nom,
                     ))
 
-            fig.update_layout(xaxis_tickangle=-45, height=500)
+            fig.update_layout(
+                title=t("Évolution de la note moyenne par compétition"),
+                xaxis_title=t("Compétition"),
+                yaxis_title=t("Note moyenne"),
+                xaxis={"tickangle": -45, "categoryorder": "array", "categoryarray": compet_order},
+                height=500,
+            )
             st.plotly_chart(fig, width="stretch", key="prog_line")
 
         # ═══ Flag-era progression (2026+) — Win Rate + Drapeaux ═══
@@ -169,18 +187,27 @@ def show_progression_tab(data: pd.DataFrame) -> None:
             ).reset_index()
 
             compet_order_f = [c for c in _chrono_order if c in agg_flags["Compet_Label"].values]
+            _order_map_f = {c: i for i, c in enumerate(compet_order_f)}
 
             # Win Rate progression
-            fig_f = px.line(
-                agg_flags, x="Compet_Label", y="Win_Rate", color="Nom",
-                markers=True,
-                hover_data=["Nb_Matchs"],
-                title=t("Taux de victoire par compétition (2026+)"),
-                labels={"Win_Rate": t("Taux de victoire"), "Compet_Label": t("Compétition")},
-                category_orders={"Compet_Label": compet_order_f},
-            )
+            fig_f = go.Figure()
+            for nom in sel_athletes:
+                d_a = agg_flags[agg_flags["Nom"] == nom]
+                if not d_a.empty:
+                    orders = [_order_map_f.get(c, 999) for c in d_a["Compet_Label"]]
+                    rows = sorted(zip(orders, d_a["Compet_Label"], d_a["Win_Rate"]), key=lambda r: r[0])
+                    fig_f.add_trace(go.Scatter(
+                        x=[r[1] for r in rows], y=[r[2] for r in rows],
+                        mode="lines+markers", name=nom,
+                    ))
             fig_f.add_hline(y=0.5, line_dash="dash", line_color="gray", annotation_text="50%")
-            fig_f.update_layout(xaxis_tickangle=-45, height=400, yaxis_range=[0, 1])
+            fig_f.update_layout(
+                title=t("Taux de victoire par compétition (2026+)"),
+                xaxis_title=t("Compétition"),
+                yaxis_title=t("Taux de victoire"),
+                xaxis={"tickangle": -45, "categoryorder": "array", "categoryarray": compet_order_f},
+                height=400, yaxis_range=[0, 1],
+            )
             st.plotly_chart(fig_f, width="stretch", key="prog_line_flags")
 
             # Drapeaux moyens obtenus par match
@@ -190,17 +217,25 @@ def show_progression_tab(data: pd.DataFrame) -> None:
                 ).agg(
                     Drapeaux_Moy=("Drapeau", "mean"),
                     Nb_Matchs=("Drapeau", "count"),
-                ).reset_index().sort_values(["Year", "Compet_Label"])
+                ).reset_index()
 
-                fig_drapeaux = px.line(
-                    agg_drapeaux, x="Compet_Label", y="Drapeaux_Moy", color="Nom",
-                    markers=True,
-                    hover_data=["Nb_Matchs"],
+                fig_drapeaux = go.Figure()
+                for nom in sel_athletes:
+                    d_a = agg_drapeaux[agg_drapeaux["Nom"] == nom]
+                    if not d_a.empty:
+                        orders = [_order_map_f.get(c, 999) for c in d_a["Compet_Label"]]
+                        rows = sorted(zip(orders, d_a["Compet_Label"], d_a["Drapeaux_Moy"]), key=lambda r: r[0])
+                        fig_drapeaux.add_trace(go.Scatter(
+                            x=[r[1] for r in rows], y=[r[2] for r in rows],
+                            mode="lines+markers", name=nom,
+                        ))
+                fig_drapeaux.update_layout(
                     title=t("Drapeaux moyens obtenus par compétition (2026+)"),
-                    labels={"Drapeaux_Moy": t("Drapeaux moyens"), "Compet_Label": t("Compétition")},
-                    category_orders={"Compet_Label": compet_order_f},
+                    xaxis_title=t("Compétition"),
+                    yaxis_title=t("Drapeaux moyens"),
+                    xaxis={"tickangle": -45, "categoryorder": "array", "categoryarray": compet_order_f},
+                    height=400,
                 )
-                fig_drapeaux.update_layout(xaxis_tickangle=-45, height=400)
                 st.plotly_chart(fig_drapeaux, width="stretch", key="prog_line_drapeaux")
 
         # ── Stats summary ──

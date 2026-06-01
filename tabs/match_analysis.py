@@ -510,10 +510,14 @@ def _render_tour_funnel(data: pd.DataFrame, sel_type, sel_sexe, sel_years, sel_a
         tc_all["Tour_Display"] = tc_all["Tour"].apply(fmt_tour)
         tc_display = tc_all.dropna(subset=["Note moy."])
         if not tc_display.empty:
-            fig_note_tour = px.line(
-                tc_display, x="Tour_Display", y="Note moy.", markers=True,
+            fig_note_tour = go.Figure(go.Scatter(
+                x=tc_display["Tour_Display"], y=tc_display["Note moy."],
+                mode="lines+markers",
+            ))
+            fig_note_tour.update_layout(
                 title=t("Évolution de la note moyenne par tour"),
-                labels={"Tour_Display": t("Tour"), "Note moy.": t("Note moyenne")},
+                xaxis_title=t("Tour"),
+                yaxis_title=t("Note moyenne"),
             )
             st.plotly_chart(fig_note_tour, width="stretch", key="ma_note_tour")
 
