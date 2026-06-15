@@ -7,17 +7,21 @@ from utils.lang import t
 
 
 # ── Competition chronological order (for time-based weighting) ────────────────
+# Keyed by (competition_name, year) to handle same city hosting in different years.
 
 COMPET_CHRONO_ORDER = {
     # 2024
-    "K1 Paris": 1, "K1 Antalya": 2, "K1 Cairo": 3, "K1 Casablanca": 4,
-    "SA Athens": 5, "SA Larnaca": 6, "SA Salzbourg": 7,
+    ("K1 Paris", 2024): 1, ("K1 Antalya", 2024): 2, ("K1 Cairo", 2024): 3,
+    ("K1 Casablanca", 2024): 4, ("SA Athens", 2024): 5, ("SA Larnaca", 2024): 6,
+    ("SA Salzbourg", 2024): 7,
     # 2025
-    "K1 Hanghou": 8, "K1 Rabat": 9,
-    "SA KualaLumpur": 10, "SA Kuala Lumpur": 10,
+    ("K1 Hanghou", 2025): 8, ("K1 Rabat", 2025): 9, ("SA KualaLumpur", 2025): 10,
+    ("SA Kuala Lumpur", 2025): 10, ("K1 Cairo", 2025): 11, ("K1 Paris", 2025): 12,
+    ("SA Larnaca", 2025): 13, ("SA Salzbourg", 2025): 14, ("SA Tbilisi", 2025): 15,
     # 2026
-    "K1 Istanbul": 11, "SA Tbilisi": 12, "K1 Roma": 13,
-    "K1 Leshan": 14, "SA ACoruna": 15, "SA A Coruna": 15,
+    ("K1 Istanbul", 2026): 16, ("SA Tbilisi", 2026): 17, ("K1 Roma", 2026): 18,
+    ("K1 Leshan", 2026): 19, ("SA ACoruna", 2026): 20, ("SA A Coruna", 2026): 20,
+    ("K1 Rabat", 2026): 21,
 }
 
 # Max flags per judge system
@@ -26,27 +30,47 @@ MAX_FLAGS_K1 = 7   # 7 judges for Premier League
 
 
 def get_compet_chrono_rank(competition: str, year=None) -> int:
-    """Return chronological rank of a competition (higher = more recent)."""
+    """Return chronological rank of a competition (higher = more recent).
+
+    Uses (competition, year) lookup. Falls back to year-based estimation
+    for competitions not explicitly listed (future-proof).
+    """
     comp_str = str(competition).replace("_", " ") if competition else ""
-    rank = COMPET_CHRONO_ORDER.get(comp_str, 0)
-    if rank == 0 and year is not None:
-        try:
-            rank = int(year) * 10
-        except (ValueError, TypeError):
-            pass
-    return rank
+    year_int = None
+    try:
+        year_int = int(year) if year is not None else None
+    except (ValueError, TypeError):
+        pass
+
+    # Primary lookup: (competition, year)
+    if year_int is not None:
+        rank = COMPET_CHRONO_ORDER.get((comp_str, year_int), 0)
+        if rank > 0:
+            return rank
+
+    # Fallback: estimate from year — place after all known competitions of that year
+    if year_int is not None:
+        year_ranks = [r for (_, y), r in COMPET_CHRONO_ORDER.items() if y == year_int]
+        if year_ranks:
+            return max(year_ranks)
+        # Unknown year: extrapolate beyond known data
+        max_known_rank = max(COMPET_CHRONO_ORDER.values()) if COMPET_CHRONO_ORDER else 0
+        max_known_year = max(y for (_, y) in COMPET_CHRONO_ORDER.keys()) if COMPET_CHRONO_ORDER else 2024
+        return max_known_rank + (year_int - max_known_year) * 7
+
+    return 0
 
 
 def compute_time_weight(competition: str, year=None, decay: float = 0.85) -> float:
     """Compute exponential time weight — more recent competitions get higher weight.
-    
+
     decay=0.85 means each step back in time multiplies weight by 0.85.
     Most recent competition gets weight ~1.0.
     """
     rank = get_compet_chrono_rank(competition, year)
     max_rank = max(COMPET_CHRONO_ORDER.values()) if COMPET_CHRONO_ORDER else 1
     steps_back = max_rank - rank
-    return decay ** steps_back
+    return decay ** max(steps_back, 0)
 
 
 def is_flag_era(year) -> bool:
