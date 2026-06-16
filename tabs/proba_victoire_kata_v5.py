@@ -673,8 +673,13 @@ def _compute_transfer_score(base_feats: dict, a_kata_wr: float, tour_rank: float
     return float(tf_model.predict(tf_X)[0])
 
 
-def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
-    """Predict win probability for each kata using the LightGBM model."""
+def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats, is_red=1):
+    """Predict win probability for each kata using the LightGBM model.
+    
+    nom_a = the athlete whose katas we're testing (perspective athlete).
+    nom_b = the opponent.
+    is_red = 1 if nom_a wears the red belt (aka), 0 if blue (shiro).
+    """
     ok_index = ag.athlete_oppkata_losses.set_index(["Nom", "Opp_Kata"]) if not ag.athlete_oppkata_losses.empty else None
     ak_index = ag.athlete_kata.set_index(["Nom", "Kata"]) if not ag.athlete_kata.empty else None
     kt_index = ag.kata_tour.set_index(["Kata", "N_Tour"]) if not ag.kata_tour.empty else None
@@ -765,7 +770,7 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
             "Same_Style": base_feats["same_style"],
             "Is_K1": base_feats["is_k1"],
             "Is_Male": base_feats["is_male"],
-            "Is_Red": 1,  # A is red (aka)
+            "Is_Red": is_red,
             "Is_Home": base_feats["is_home"],
             "Tour_Rank": tour_rank,
             "Transfer_Score": transfer_score,
@@ -787,11 +792,11 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats):
             "Probabilité de victoire (%)": round(p_final * 100.0, 2),
             "Confiance (0-1)": round(w, 3),
             "Proba brute (%)": round(p_model * 100.0, 1),
-            "Note moy. A (kata)": round(a_kata_note, 2),
-            "Diff. notes (A-B)": round(note_diff, 2),
-            "Nb occ. (A, kata)": int(a_kata_n),
-            "Kata favori A": "✓" if is_fav else "",
-            "B connaît kata": "✓" if b_seen else "",
+            "Note moy. (kata)": round(a_kata_note, 2),
+            "Diff. notes": round(note_diff, 2),
+            "Nb occ. (kata)": int(a_kata_n),
+            "Kata favori": "✓" if is_fav else "",
+            "Adv. connaît kata": "✓" if b_seen else "",
         })
 
     return pd.DataFrame(results).sort_values("Probabilité de victoire (%)", ascending=False).reset_index(drop=True)
@@ -825,6 +830,41 @@ def _get_katas_of_style_in_scope(df_scope, style_a):
 # Streamlit Tab — Main
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _render_results_column(res_df, athlete_name, color_label, bar_color_scale, chart_key):
+    """Render prediction results for one athlete (Red or Blue)."""
+    if res_df.empty:
+        return
+
+    # Top 3 barres colorées
+    st.markdown(f"##### Top 3")
+    for _, row in res_df.head(3).iterrows():
+        p = row["Probabilité de victoire (%)"]
+        col_kata, col_bar, col_conf = st.columns([1, 2, 1])
+        with col_kata:
+            st.markdown(f"**{row['Kata']}**")
+        with col_bar:
+            st.markdown(proba_bar_html(p), unsafe_allow_html=True)
+        with col_conf:
+            conf = row["Confiance (0-1)"]
+            conf_color = "green" if conf >= 0.6 else "orange" if conf >= 0.3 else "red"
+            st.markdown(f"{_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
+
+    # Graphique
+    fig = px.bar(
+        res_df, x="Kata", y="Probabilité de victoire (%)",
+        color="Probabilité de victoire (%)",
+        color_continuous_scale=bar_color_scale,
+        range_color=[30, 70],
+        hover_data=["Confiance (0-1)", "Proba brute (%)", "Nb occ. (kata)"],
+    )
+    fig.update_layout(height=350, margin=dict(t=10, b=30), showlegend=False)
+    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+
+    # Détail
+    with st.expander(t("Détail complet")):
+        st.dataframe(format_display_df(res_df), use_container_width=True)
+
+
 def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
     st.header(t("Probabilité de victoire par kata"))
     show_tab_help("proba_victoire")
@@ -835,7 +875,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 **Model v5 — LightGBM (pre-trained, AUC = 0.977)**
 - Uses **34 features**: ranking, win rate, H2H, momentum (5 & 15 matches), note trend, transfer score, kata consistency, opponent weakness, flag performance, age, experience, win streak, kata diversity, interactions.
 - Anti-bias: if A/B have little history, probability is **pulled toward 50%** (shrinkage).
-- Results are **probabilities**, not certainties.
+- Dual view: predictions from **both** Red and Blue perspectives.
             """
         )
     else:
@@ -844,7 +884,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 **Modèle v5 — LightGBM (pré-entraîné, AUC = 0.977)**
 - Utilise **34 features** : ranking, win rate, H2H, momentum (5 & 15 matchs), tendance de notes, transfer score, consistance kata, faiblesse adversaire, performance drapeaux, âge, expérience, série en cours, diversité kata, interactions.
 - Anti-biais : si A/B ont peu d'historique, on **ramène la proba vers 50%** (shrinkage).
-- Les résultats sont des **probabilités**, pas des certitudes.
+- Vue duale : prédictions des **deux** perspectives Rouge et Bleu.
             """
         )
 
@@ -889,7 +929,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
             filter_panel_close()
             return
 
-        nom_a = st.selectbox(t("Athlète A (aka)"), athlete_names, key="proba_nom_a")
+        nom_a = st.selectbox(t("🔴 Athlète A (aka / rouge)"), athlete_names, key="proba_nom_a")
 
         sexe_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Sexe"], default=None)
         if sexe_a is not None:
@@ -904,7 +944,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
             filter_panel_close()
             return
 
-        nom_b = st.selectbox(t("Athlète B (shiro)"), athlete_b_names, key="proba_nom_b")
+        nom_b = st.selectbox(t("🔵 Athlète B (shiro / bleu)"), athlete_b_names, key="proba_nom_b")
 
         tour_options = sorted(df_scope["N_Tour"].dropna().astype(str).unique().tolist())
         if not tour_options:
@@ -914,66 +954,76 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         n_tour = st.selectbox(t("Tour simulé"), tour_options, format_func=fmt_tour, key="proba_tour")
 
+        # ── Katas pour A (rouge) ──
         style_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Style"], default=None)
+        katas_style_a = _get_katas_of_style_in_scope(df_scope, style_a)
+        katas_effectues_a = sorted(df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist())
+        katas_effectues_a = [k for k in katas_effectues_a if k in katas_style_a]
 
         st.markdown("---")
-        st.markdown(t("#### 🥋 Katas testés (pour A)"))
+        st.markdown(t("#### 🔴 Katas testés (A)"))
+        katas_selectionnes_a = st.multiselect(
+            t("Katas à tester (A)"), options=katas_style_a,
+            default=katas_effectues_a if katas_effectues_a else katas_style_a,
+            key="proba_katas_a",
+        )
 
-        katas_style = _get_katas_of_style_in_scope(df_scope, style_a)
-        katas_effectues_a = sorted(df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist())
-        katas_effectues_a = [k for k in katas_effectues_a if k in katas_style]
+        # ── Katas pour B (bleu) ──
+        style_b = safe_mode(df_scope[df_scope["Nom"] == nom_b]["Style"], default=None)
+        katas_style_b = _get_katas_of_style_in_scope(df_scope, style_b)
+        katas_effectues_b = sorted(df_scope[df_scope["Nom"] == nom_b]["Kata"].dropna().astype(str).unique().tolist())
+        katas_effectues_b = [k for k in katas_effectues_b if k in katas_style_b]
 
-        katas_selectionnes = st.multiselect(
-            t("Katas à tester"), options=katas_style,
-            default=katas_effectues_a if katas_effectues_a else katas_style,
-            key="proba_katas",
+        st.markdown(t("#### 🔵 Katas testés (B)"))
+        katas_selectionnes_b = st.multiselect(
+            t("Katas à tester (B)"), options=katas_style_b,
+            default=katas_effectues_b if katas_effectues_b else katas_style_b,
+            key="proba_katas_b",
         )
 
         st.markdown("---")
-        st.markdown(t("#### 🏆 Top 3 katas à faire"))
+        st.markdown(t("#### 🏆 Top 3 katas"))
         if get_lang() == "en":
             st.caption(
-                "Based on opponent and round.\n\n"
-                "- If A has **≥ 4 matches** ⇒ Top 3 from their **already played katas**.\n"
+                "Best kata for each athlete vs the opponent.\n\n"
+                "- If athlete has **≥ 4 matches** ⇒ Top 3 from **already played katas**.\n"
                 "- Otherwise ⇒ Top 3 from **all style katas**."
             )
         else:
             st.caption(
-                "Basé sur l'adversaire et le tour.\n\n"
-                "- Si A a **≥ 4 matchs** ⇒ Top 3 parmi ses **katas déjà joués**.\n"
+                "Meilleur kata pour chaque athlète face à l'adversaire.\n\n"
+                "- Si l'athlète a **≥ 4 matchs** ⇒ Top 3 parmi ses **katas déjà joués**.\n"
                 "- Sinon ⇒ Top 3 parmi **tous les katas du style**."
             )
-        run_top3 = st.button(t("🏆 Top 3"), key="proba_top3")
+        run_top3 = st.button(t("🏆 Top 3 (les deux)"), key="proba_top3")
 
         st.markdown("---")
         run_manual = st.button(t("🎯 Calculer les probabilités"), key="proba_run", type="primary")
         filter_panel_close()
 
     with content_col:
-        # Quick stats
+        # Quick stats — Red vs Blue header
         c1, c2 = st.columns(2)
         with c1:
             a_stats_row = ag.athlete_stats[ag.athlete_stats["Nom"] == nom_a]
             if not a_stats_row.empty:
                 r = a_stats_row.iloc[0]
-                st.metric(f"A – {nom_a}", f"{r['WinRate_Smoothed']:.0%} WR",
+                st.metric(f"🔴 {nom_a}", f"{r['WinRate_Smoothed']:.0%} WR",
                           help=t("Win rate global de A"))
-                st.caption(f"{int(r['Wins'])}/{int(r['Total'])} {t('matchs')}")
-                if pd.notna(r["Ranking_Mean"]):
-                    st.caption(f"Ranking moy. : {r['Ranking_Mean']:.0f}")
+                st.caption(f"{int(r['Wins'])}/{int(r['Total'])} {t('matchs')} · "
+                           f"Ranking: {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
             else:
-                st.metric(f"A – {nom_a}", "?")
+                st.metric(f"🔴 {nom_a}", "?")
         with c2:
             b_stats_row = ag.athlete_stats[ag.athlete_stats["Nom"] == nom_b]
             if not b_stats_row.empty:
                 r = b_stats_row.iloc[0]
-                st.metric(f"B – {nom_b}", f"{r['WinRate_Smoothed']:.0%} WR",
+                st.metric(f"🔵 {nom_b}", f"{r['WinRate_Smoothed']:.0%} WR",
                           help=t("Win rate global de B"))
-                st.caption(f"{int(r['Wins'])}/{int(r['Total'])} {t('matchs')}")
-                if pd.notna(r["Ranking_Mean"]):
-                    st.caption(f"Ranking moy. : {r['Ranking_Mean']:.0f}")
+                st.caption(f"{int(r['Wins'])}/{int(r['Total'])} {t('matchs')} · "
+                           f"Ranking: {r['Ranking_Mean']:.0f}" if pd.notna(r["Ranking_Mean"]) else "")
             else:
-                st.metric(f"B – {nom_b}", "?")
+                st.metric(f"🔵 {nom_b}", "?")
 
         # Model info
         with st.expander(t("📊 Performance du modèle")):
@@ -985,97 +1035,113 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 f"- **Features** : 34\n"
                 f"- **Train/Test split** : chronologique (80/20)"
             )
-
             st.markdown(t("##### Top features (importance)"))
             st.caption("Transfer_Score, Ranking_Adv, H2H_Adv, Note_Diff, WinRate_Adv, "
                        "Momentum_Diff, A_Kata_WR, Exp_Diff, Kata_Diversity_Diff, Note_Trend_Diff")
 
-        # ── Predictions ──
-        base_feats = _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_a, nom_b)
+        # ── Compute base features for both perspectives ──
+        base_feats_a = _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_a, nom_b)
+        base_feats_b = _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_b, nom_a)
 
-        if run_manual and katas_selectionnes:
-            res_df = _predict_for_katas(
-                model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
-                n_tour=str(n_tour), katas=list(map(str, katas_selectionnes)),
-                base_feats=base_feats,
-            )
+        # ── Predictions (manual) ──
+        if run_manual:
+            st.subheader(f"{nom_a} vs {nom_b} · {fmt_tour(n_tour)}")
 
-            st.subheader(f"{t('Résultats')} – {nom_a} vs {nom_b} ({t('tour')}: {fmt_tour(n_tour)})")
+            col_red, col_blue = st.columns(2)
 
-            # Top 3 barres colorées
-            st.markdown(f"##### Top 3 ({t('sur ta sélection')})")
-            for _, row in res_df.head(3).iterrows():
-                p = row["Probabilité de victoire (%)"]
-                col_kata, col_bar, col_conf = st.columns([1, 2, 1])
-                with col_kata:
-                    st.markdown(f"**{row['Kata']}**")
-                with col_bar:
-                    st.markdown(proba_bar_html(p), unsafe_allow_html=True)
-                with col_conf:
-                    conf = row["Confiance (0-1)"]
-                    conf_color = "green" if conf >= 0.6 else "orange" if conf >= 0.3 else "red"
-                    st.markdown(f"{t('Confiance')}: {_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
+            # Rouge (A)
+            with col_red:
+                st.markdown(f"### 🔴 {nom_a}")
+                if katas_selectionnes_a:
+                    res_a = _predict_for_katas(
+                        model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
+                        n_tour=str(n_tour), katas=list(map(str, katas_selectionnes_a)),
+                        base_feats=base_feats_a, is_red=1,
+                    )
+                    _render_results_column(
+                        res_a, nom_a, "red",
+                        ["#ffc107", "#e8553d", "#8b0000"],
+                        "proba_chart_red_manual",
+                    )
+                else:
+                    st.info(t("Aucun kata sélectionné pour A."))
 
-            st.markdown(f"##### {t('Détail complet')}")
-            st.dataframe(format_display_df(res_df), use_container_width=True)
+            # Bleu (B)
+            with col_blue:
+                st.markdown(f"### 🔵 {nom_b}")
+                if katas_selectionnes_b:
+                    res_b = _predict_for_katas(
+                        model=model, ag=ag, nom_a=nom_b, nom_b=nom_a,
+                        n_tour=str(n_tour), katas=list(map(str, katas_selectionnes_b)),
+                        base_feats=base_feats_b, is_red=0,
+                    )
+                    _render_results_column(
+                        res_b, nom_b, "blue",
+                        ["#ffc107", "#4a90d9", "#00008b"],
+                        "proba_chart_blue_manual",
+                    )
+                else:
+                    st.info(t("Aucun kata sélectionné pour B."))
 
-            fig = px.bar(
-                res_df, x="Kata", y="Probabilité de victoire (%)",
-                color="Probabilité de victoire (%)",
-                color_continuous_scale=["#dc3545", "#ffc107", "#28a745"],
-                range_color=[30, 70],
-                hover_data=["Confiance (0-1)", "Proba brute (%)", "Diff. notes (A-B)", "Nb occ. (A, kata)"],
-                title=t("Probabilité de victoire par kata (A) – sélection"),
-            )
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True, key="proba_kata_bar_manual")
-
+        # ── Top 3 ──
         if run_top3:
-            a_match_count = int(base_feats["a_matches"])
-            if a_match_count >= 4:
-                candidates = sorted(set(
-                    df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist()
-                ))
-                source = t("katas déjà joués par A") + f" (A: {a_match_count} {t('matchs')})"
-            else:
-                candidates = list(map(str, katas_style))
-                source = t("tous les katas du style") + f" (A: {a_match_count} {t('matchs')})"
+            st.subheader(f"🏆 Top 3 · {nom_a} vs {nom_b} · {fmt_tour(n_tour)}")
 
-            if not candidates:
-                st.warning(t("Impossible de proposer un Top 3 : aucun kata candidat trouvé."))
-            else:
-                res_df_top = _predict_for_katas(
-                    model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
-                    n_tour=str(n_tour), katas=candidates, base_feats=base_feats,
-                )
+            col_red, col_blue = st.columns(2)
 
-                st.subheader(t("🏆 Top 3 katas à faire"))
-                st.caption(f"{t('Source candidats')} : **{source}**")
+            with col_red:
+                st.markdown(f"### 🔴 {nom_a}")
+                a_match_count = int(base_feats_a["a_matches"])
+                if a_match_count >= 4:
+                    candidates_a = sorted(set(
+                        df_scope[df_scope["Nom"] == nom_a]["Kata"].dropna().astype(str).unique().tolist()
+                    ))
+                    source_a = t("katas déjà joués") + f" ({a_match_count} {t('matchs')})"
+                else:
+                    candidates_a = list(map(str, katas_style_a))
+                    source_a = t("tous les katas du style")
 
-                for _, row in res_df_top.head(3).iterrows():
-                    p = row["Probabilité de victoire (%)"]
-                    col_kata, col_bar, col_conf = st.columns([1, 2, 1])
-                    with col_kata:
-                        st.markdown(f"**{row['Kata']}**")
-                    with col_bar:
-                        st.markdown(proba_bar_html(p), unsafe_allow_html=True)
-                    with col_conf:
-                        conf = row["Confiance (0-1)"]
-                        conf_color = "green" if conf >= 0.6 else "orange" if conf >= 0.3 else "red"
-                        st.markdown(f"{t('Confiance')}: {_color_badge(f'{conf:.2f}', conf_color)}", unsafe_allow_html=True)
+                if candidates_a:
+                    st.caption(f"📌 {source_a}")
+                    res_top_a = _predict_for_katas(
+                        model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
+                        n_tour=str(n_tour), katas=candidates_a,
+                        base_feats=base_feats_a, is_red=1,
+                    )
+                    _render_results_column(
+                        res_top_a, nom_a, "red",
+                        ["#ffc107", "#e8553d", "#8b0000"],
+                        "proba_chart_red_top3",
+                    )
+                else:
+                    st.warning(t("Aucun kata candidat trouvé."))
 
-                st.dataframe(format_display_df(res_df_top), use_container_width=True)
+            with col_blue:
+                st.markdown(f"### 🔵 {nom_b}")
+                b_match_count = int(base_feats_b["a_matches"])
+                if b_match_count >= 4:
+                    candidates_b = sorted(set(
+                        df_scope[df_scope["Nom"] == nom_b]["Kata"].dropna().astype(str).unique().tolist()
+                    ))
+                    source_b = t("katas déjà joués") + f" ({b_match_count} {t('matchs')})"
+                else:
+                    candidates_b = list(map(str, katas_style_b))
+                    source_b = t("tous les katas du style")
 
-                fig2 = px.bar(
-                    res_df_top.head(10), x="Kata", y="Probabilité de victoire (%)",
-                    color="Probabilité de victoire (%)",
-                    color_continuous_scale=["#dc3545", "#ffc107", "#28a745"],
-                    range_color=[30, 70],
-                    hover_data=["Confiance (0-1)", "Proba brute (%)", "Nb occ. (A, kata)"],
-                    title=t("Top katas recommandés (Top 10)"),
-                )
-                fig2.update_layout(height=400)
-                st.plotly_chart(fig2, use_container_width=True, key="proba_kata_bar_top3")
+                if candidates_b:
+                    st.caption(f"📌 {source_b}")
+                    res_top_b = _predict_for_katas(
+                        model=model, ag=ag, nom_a=nom_b, nom_b=nom_a,
+                        n_tour=str(n_tour), katas=candidates_b,
+                        base_feats=base_feats_b, is_red=0,
+                    )
+                    _render_results_column(
+                        res_top_b, nom_b, "blue",
+                        ["#ffc107", "#4a90d9", "#00008b"],
+                        "proba_chart_blue_top3",
+                    )
+                else:
+                    st.warning(t("Aucun kata candidat trouvé."))
 
         if not run_manual and not run_top3:
             st.info(t("Sélectionnez les paramètres puis cliquez sur 'Calculer les probabilités' ou 'Top 3'."))
