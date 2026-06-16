@@ -14,7 +14,8 @@ from tabs.dataset_view import show_dataset_tab
 from tabs.athlete_focus import show_athlete_focus_tab
 from tabs.graphs import show_graphs_tab
 from tabs.acm import show_acm_tab
-from tabs.proba_victoire_kata import show_proba_victoire_kata_tab
+from tabs.proba_victoire_kata_v5 import show_proba_victoire_kata_tab
+from tabs.proba_score import show_proba_score_tab
 from tabs.kata_comparison import show_kata_comparison_tab
 from tabs.match_analysis import show_match_analysis_tab
 from tabs.tendances import show_tendances_tab
@@ -118,7 +119,14 @@ def main():
         show_athlete_focus_tab(data)
 
     with tab2:
-        show_proba_victoire_kata_tab(data)
+        sub1, sub2 = st.tabs([
+            "🚩 " + t("Probabilité de score"),
+            "🥋 " + t("Probabilité de victoire par kata"),
+        ])
+        with sub1:
+            show_proba_score_tab(data)
+        with sub2:
+            show_proba_victoire_kata_tab(data)
 
     with tab3:
         show_kata_comparison_tab(data)

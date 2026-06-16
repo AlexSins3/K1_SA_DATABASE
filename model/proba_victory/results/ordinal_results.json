@@ -1,0 +1,18 @@
+{
+  "K1": {
+    "accuracy": 0.32098765432098764,
+    "mae": 1.1851851851851851,
+    "accuracy_pm1": 0.6666666666666666,
+    "log_loss": null,
+    "best_alpha": 0.5,
+    "n_features": 14
+  },
+  "SA": {
+    "accuracy": 0.2169811320754717,
+    "mae": 1.2452830188679245,
+    "accuracy_pm1": 0.6509433962264151,
+    "log_loss": null,
+    "best_alpha": 5.0,
+    "n_features": 7
+  }
+}
