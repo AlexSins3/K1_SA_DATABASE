@@ -17,6 +17,7 @@ scipy==1.16.3
 prince==0.16.2
 joblib==1.5.2
 lightgbm==4.6.0
+mord==0.7
 
 # --- Testing ---
 pytest==9.0.3
