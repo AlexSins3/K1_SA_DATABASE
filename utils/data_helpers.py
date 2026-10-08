@@ -21,7 +21,7 @@ COMPET_CHRONO_ORDER = {
     # 2026
     ("K1 Istanbul", 2026): 16, ("SA Tbilisi", 2026): 17, ("K1 Roma", 2026): 18,
     ("K1 Leshan", 2026): 19, ("SA ACoruna", 2026): 20, ("SA A Coruna", 2026): 20,
-    ("K1 Rabat", 2026): 21,
+    ("K1 Rabat", 2026): 21, ("SA Salzbourg", 2026): 22,
 }
 
 # Max flags per judge system
