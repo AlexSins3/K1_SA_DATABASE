@@ -1,14 +1,16 @@
 # tabs/proba_score.py — Prédiction de score aux drapeaux
 """
 Onglet "Probabilité de score" : prédit la distribution des scores
-aux drapeaux (ex: 7-0, 6-1, 5-2, 4-3 en K1 ; 5-0, 4-1, 3-2 en SA).
+aux drapeaux (ex: 7-0, 6-1, 5-2, 4-3 à 7 juges ; 5-0, 4-1, 3-2 à 5 juges).
 
-Utilise le meilleur modèle par format :
-- K1 : LightGBM (Acc±1 = 69%)
-- SA : Ordinal optimisé (Acc±1 = 65%)
+Un modèle par jury, le meilleur (Acc±1 sur le test chronologique) entre
+LightGBM et Ordinal :
+- J7 : 7 juges — K1, EKF, AKF, UFAK
+- J5 : 5 juges — SA, PKF
 """
 from __future__ import annotations
 
+import json
 import pickle
 from pathlib import Path
 from typing import Optional
@@ -18,10 +20,14 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from constants.competitions import (
+    COMPET_TYPES, PANEL_GROUPS, TOUR_RANK as TOUR_ORDER,
+    is_championship, max_flags as type_max_flags, panel_group,
+)
 from utils.data_helpers import safe_mode
 from utils.display import fmt_tour
 from utils.lang import t, get_lang
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, compet_type_name
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -30,51 +36,58 @@ from utils.ui import filter_panel_open, filter_panel_close
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "model" / "proba_victory" / "results"
 
-TOUR_ORDER = {
-    "Pool_1": 1, "Pool_2": 2, "Pool_3": 3,
-    "T1": 1, "T2": 2, "T3": 3,
-    "PW1": 4, "PW2": 5, "PW3": 6,
-    "RP1": 4, "RP2": 5, "RP3": 6, "RP4": 7,
-    "R1": 7, "R2": 8,
-    "Bronze": 9, "Final": 10,
-}
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Model Loading (cached)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
 @st.cache_resource
 def _load_score_models():
-    """Charge les modèles de score. Retourne dict {K1: ..., SA: ...}."""
-    models = {}
+    """Charge les modèles de score. Retourne dict {J7: ..., J5: ..., _transfer: ...}.
 
-    # K1 → LightGBM (meilleur Acc±1)
+    Pour chaque jury, garde le meilleur modèle (Acc±1 test) entre LightGBM et Ordinal.
+    """
+    models = {}
+    candidates = {}
+
     lgbm_path = MODEL_DIR / "lgbm_models.pkl"
     if lgbm_path.exists():
         with open(lgbm_path, "rb") as f:
             lgbm_data = pickle.load(f)
-        if "K1" in lgbm_data:
-            models["K1"] = {
-                "model": lgbm_data["K1"]["model"],
+        lgbm_res = _load_json(MODEL_DIR / "lgbm_results.json")
+        for group, item in lgbm_data.items():
+            candidates.setdefault(group, []).append({
+                "model": item["model"],
                 "type": "lgbm",
-                "features": lgbm_data["K1"]["model"].feature_name_,
-                "accuracy_pm1": 0.69,
-            }
+                "features": item["model"].feature_name_,
+                "accuracy_pm1": lgbm_res.get(group, {}).get("accuracy_pm1", 0.0),
+            })
 
-    # SA → Ordinal (meilleur Acc±1)
     ordinal_path = MODEL_DIR / "ordinal_models.pkl"
     if ordinal_path.exists():
         with open(ordinal_path, "rb") as f:
             ordinal_data = pickle.load(f)
-        if "SA" in ordinal_data:
-            models["SA"] = {
-                "model": ordinal_data["SA"]["model"],
-                "scaler": ordinal_data["SA"]["scaler"],
+        ord_res = _load_json(MODEL_DIR / "ordinal_results.json")
+        for group, item in ordinal_data.items():
+            candidates.setdefault(group, []).append({
+                "model": item["model"],
+                "scaler": item["scaler"],
                 "type": "ordinal",
-                "features": ordinal_data["SA"].get("selected_features", []),
-                "accuracy_pm1": 0.65,
-            }
+                "features": item.get("selected_features", []),
+                "accuracy_pm1": ord_res.get(group, {}).get("accuracy_pm1", 0.0),
+            })
+
+    for group, cands in candidates.items():
+        if group in PANEL_GROUPS:
+            # LightGBM first: on tie, keep its real probability distribution
+            models[group] = max(cands, key=lambda c: (c["accuracy_pm1"], c["type"] == "lgbm"))
 
     # Transfer model (pour compute Transfer_Score)
     transfer_path = MODEL_DIR / "transfer_model.pkl"
@@ -202,12 +215,15 @@ def _compute_pair_features(
     same_style = int(safe_mode(a_data["Style"], "") == safe_mode(b_data["Style"], ""))
     home_advantage = 0  # Simplified (no competition region info at prediction time)
 
-    # ── Drapeaux ──
-    a_flags = pd.to_numeric(a_data["Drapeau"], errors="coerce").dropna()
-    b_flags = pd.to_numeric(b_data["Drapeau"], errors="coerce").dropna()
-    a_flag_mean = float(a_flags.mean()) if len(a_flags) > 0 else 0.0
-    b_flag_mean = float(b_flags.mean()) if len(b_flags) > 0 else 0.0
-    diff_flag_mean = a_flag_mean - b_flag_mean
+    # ── Drapeaux (part du jury : drapeaux / 5 ou 7 juges, comme à l'entraînement) ──
+    def _flag_share_mean(rows):
+        flags = pd.to_numeric(rows["Drapeau"], errors="coerce")
+        judges = rows["Type_Compet"].astype(str).map(type_max_flags).astype(float)
+        share = (flags / judges).dropna()
+        return float(share.mean()) if len(share) > 0 else 0.5
+
+    diff_flag_mean = _flag_share_mean(a_data) - _flag_share_mean(b_data)
+    is_champ = int(is_championship(type_compet))
 
     # ── Interactions ──
     ranking_x_ismale = log_ranking_ratio * is_male
@@ -242,7 +258,10 @@ def _compute_pair_features(
         }
         tf_model = models["_transfer"]["model"]
         tf_feats = models["_transfer"]["features"]
-        tf_X = pd.DataFrame([transfer_feats])[tf_feats]
+        tf_X = pd.DataFrame([transfer_feats])[tf_feats].astype(float)
+        tf_scaler = models["_transfer"].get("scaler")
+        if tf_scaler is not None:
+            tf_X = tf_scaler.transform(tf_X)
         transfer_score = float(tf_model.predict(tf_X)[0])
 
     # ── Assembler toutes les features ──
@@ -261,6 +280,7 @@ def _compute_pair_features(
         "A_H2H_Rate": a_h2h_rate,
         "Diff_Age": diff_age,
         "Tour_Rank": tour_rank,
+        "Is_Champ": is_champ,
         "Is_Male": is_male,
         "Same_Nation": same_nation,
         "Same_Continent": same_continent,
@@ -285,10 +305,11 @@ def _predict_score_proba(features_df: pd.DataFrame, type_compet: str) -> Optiona
     Retourne un array de taille (max_flags+1,) avec les probas.
     """
     models = _load_score_models()
-    if type_compet not in models:
+    group = panel_group(type_compet)
+    if group not in models:
         return None
 
-    model_info = models[type_compet]
+    model_info = models[group]
     feat_cols = model_info["features"]
 
     # S'assurer que toutes les features nécessaires sont présentes
@@ -301,7 +322,7 @@ def _predict_score_proba(features_df: pd.DataFrame, type_compet: str) -> Optiona
         # mord n'a pas predict_proba, on utilise une approximation
         # On va plutôt utiliser la prédiction ponctuelle + distribution gaussienne
         pred = model_info["model"].predict(X_scaled)[0]
-        max_flags = 5  # SA
+        max_flags = PANEL_GROUPS[group]["judges"]
         # Créer une distribution approximative centrée sur la prédiction
         proba = np.zeros(max_flags + 1)
         for i in range(max_flags + 1):
@@ -329,7 +350,8 @@ def show_proba_score_tab(data: pd.DataFrame) -> None:
             """
 This model predicts the **probable flag score** of a match (e.g. 5-2, 7-0, 3-2...).
 
-- 🎯 **Accuracy**: predictions are correct **±1 flag** in ~67% of cases
+- ⚖️ **One model per judging panel**: 7 judges (K1, EKF, AKF, UFAK) and 5 judges (SA, PKF)
+- 🎯 **Accuracy**: shown under the result (share of predictions correct within **±1 flag**)
 - 📊 The chart shows the probability of each possible score
 - 🏆 The predicted winner is the one with the most flags
             """
@@ -339,14 +361,19 @@ This model predicts the **probable flag score** of a match (e.g. 5-2, 7-0, 3-2..
             """
 Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 3-2...).
 
-- 🎯 **Précision** : les prédictions sont correctes à **±1 drapeau** dans ~67% des cas
+- ⚖️ **Un modèle par jury** : 7 juges (K1, EKF, AKF, UFAK) et 5 juges (SA, PKF)
+- 🎯 **Précision** : affichée sous le résultat (part des prédictions correctes à **±1 drapeau**)
 - 📊 Le graphique montre la probabilité de chaque score possible
 - 🏆 Le vainqueur prédit est celui qui obtient le plus de drapeaux
             """
         )
 
     models = _load_score_models()
-    available_types = [t for t in ["K1", "SA"] if t in models]
+    present_types = set(data["Type_Compet"].astype(str).unique()) if "Type_Compet" in data.columns else set()
+    available_types = [
+        c for c in COMPET_TYPES
+        if c in present_types and panel_group(c) in models
+    ]
 
     if not available_types:
         st.error(t("Aucun modèle de score disponible. Lancez d'abord l'entraînement."))
@@ -365,7 +392,9 @@ Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 
         st.markdown("### " + t("Paramètres"))
 
         # Type de compétition
-        type_labels = {"K1": "Premier League (K1) – 7 juges", "SA": "Series A (SA) – 5 juges"}
+        type_labels = {
+            c: f"{compet_type_name(c)} – {type_max_flags(c)} {t('juges')}" for c in available_types
+        }
         type_compet = st.radio(
             t("Format"),
             available_types,
@@ -373,7 +402,7 @@ Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 
             key="score_type_compet",
         )
 
-        max_flags = 7 if type_compet == "K1" else 5
+        max_flags = type_max_flags(type_compet)
 
         # Filtrer par type
         df_scope = df[df["Type_Compet"] == type_compet].copy() if "Type_Compet" in df.columns else df.copy()
@@ -405,12 +434,15 @@ Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 
         nom_b = st.selectbox(t("Athlète B (shiro)"), b_candidates, key="score_nom_b")
 
         # Tour
-        tour_options = sorted(df_scope["N_Tour"].dropna().astype(str).unique().tolist())
+        tour_options = sorted(
+            df_scope["N_Tour"].dropna().astype(str).unique().tolist(),
+            key=lambda v: (TOUR_ORDER.get(v, 5), v),
+        )
         if tour_options:
             n_tour = st.selectbox(
                 t("Tour simulé"),
                 tour_options,
-                format_func=fmt_tour,
+                format_func=lambda v: fmt_tour(v, type_compet),
                 key="score_tour",
             )
         else:
@@ -444,7 +476,7 @@ Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 
 
         # ── Résultats principaux ──
         st.subheader(f"{nom_a}  vs  {nom_b}")
-        st.caption(f"{type_labels[type_compet]} · {fmt_tour(n_tour)}")
+        st.caption(f"{type_labels[type_compet]} · {fmt_tour(n_tour, type_compet)}")
 
         # Score prédit
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -541,15 +573,17 @@ Ce modèle prédit le **score probable aux drapeaux** d'un match (ex: 5-2, 7-0, 
             st.metric(nom_b, f"{prob_b_wins * 100:.0f}%")
 
         # ── Info modèle ──
-        model_info = models[type_compet]
+        group = panel_group(type_compet)
+        model_info = models[group]
         acc_pm1 = model_info["accuracy_pm1"]
-        model_type_label = "LightGBM" if model_info["type"] == "lgbm" else "Logistique Ordinale"
+        model_type_label = "LightGBM" if model_info["type"] == "lgbm" else t("Logistique Ordinale")
+        group_types = ", ".join(c for c in PANEL_GROUPS[group]["types"] if c in present_types)
 
         st.markdown("---")
         st.caption(
             f"ℹ️ {t('Modèle')} : {model_type_label} · "
             f"{t('Précision')} ±1 {t('drapeau')} : **{acc_pm1 * 100:.0f}%** · "
-            f"{max_flags} {t('juges')}"
+            f"{max_flags} {t('juges')} ({t('entraîné sur')} {group_types})"
         )
         if get_lang() == "en":
             st.caption(

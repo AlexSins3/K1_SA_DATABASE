@@ -11,7 +11,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from constants.competitions import TOUR_RANK as TOUR_ORDER, max_flags as type_max_flags
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.data_helpers import safe_mode
 from utils.interpretations import show_tab_help, proba_bar_html, proba_color, _color_badge
 from utils.display import fmt_tour, format_display_df
@@ -25,36 +26,14 @@ from utils.lang import t, get_lang
 MODEL_DIR = Path(__file__).resolve().parent.parent / "model" / "proba_kata_victory" / "results"
 TRANSFER_DIR = Path(__file__).resolve().parent.parent / "model" / "proba_victory" / "results"
 
-TOUR_ORDER = {
-    "Pool_1": 1, "Pool_2": 2, "Pool_3": 3, "Pool_4": 4,
-    "T1": 1, "T2": 2, "T3": 3,
-    "PW1": 4, "PW2": 5, "PW3": 6,
-    "RP1": 4, "RP2": 5, "RP3": 6, "RP4": 7,
-    "R1": 7, "R2": 8,
-    "Bronze": 9, "Final": 10,
+# Readable names of the models compared in model/proba_kata_victory/train.py
+_MODEL_NAMES = {
+    "Logistic": "Régression logistique",
+    "Logistic_Opt": "Régression logistique (sélection de variables)",
+    "GradientBoosting": "Gradient Boosting",
+    "LightGBM": "LightGBM",
+    "LightGBM_Optuna": "LightGBM + Optuna",
 }
-
-_TOUR_RANK_MAP = {
-    "pool_1": 1, "pool_2": 2, "pool_3": 3, "pool_4": 4,
-    "round_1": 2, "round_2": 3, "1/8": 3, "1/4": 4,
-    "rp1": 3, "rp2": 3, "rp3": 4, "rp4": 4,
-    "bronze": 5, "finale": 6, "final": 6,
-}
-
-# 34 features expected by the model (same order as training)
-MODEL_FEATURES = [
-    "WinRate_Adv", "Ranking_Adv", "Exp_Diff", "Momentum_Diff", "Recent_5_Diff",
-    "Note_Trend_Diff", "Note_Std_Diff", "Age_Diff", "Flag_WR_Diff", "Win_Streak_Diff",
-    "A_Kata_WR", "Log_A_Kata_N", "A_Kata_Note_C", "Note_Diff",
-    "A_Kata_Consistency", "Is_Fav_Kata_A",
-    "H2H_Adv", "B_Weakness_C", "B_Seen_Kata", "Opp_Style_WR",
-    "Kata_Tour_C", "Kata_Effect",
-    "Same_Nation", "Same_Style", "Is_K1", "Is_Male", "Is_Red",
-    "Is_Home", "Tour_Rank",
-    "Transfer_Score",
-    "Ranking_x_Tour", "WinRate_x_Tour", "KataWR_x_Tour",
-    "Kata_Diversity_Diff",
-]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -75,23 +54,19 @@ def _center_rate(x: float) -> float:
         return 0.0
 
 
-def _tour_to_rank(tour_str: str) -> float:
-    return _TOUR_RANK_MAP.get(str(tour_str).strip().lower(), 2.0)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Model loading (cached)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @st.cache_resource
 def _load_kata_victory_model():
-    """Charge le modèle LightGBM Optuna pré-entraîné."""
+    """Charge le meilleur modèle pré-entraîné (model/proba_kata_victory/train.py)."""
     model_path = MODEL_DIR / "best_model.pkl"
     if not model_path.exists():
-        return None, None
+        return None, None, {}
     with open(model_path, "rb") as f:
         data = pickle.load(f)
-    return data["model"], data["features"]
+    return data["model"], data["features"], data.get("metrics", {})
 
 
 @st.cache_resource
@@ -99,10 +74,10 @@ def _load_transfer_model():
     """Charge le modèle de transfert (GradientBoosting sur notes → dominance)."""
     path = TRANSFER_DIR / "transfer_model.pkl"
     if not path.exists():
-        return None, None
+        return None, None, None
     with open(path, "rb") as f:
         data = pickle.load(f)
-    return data["model"], data["features"]
+    return data["model"], data["features"], data.get("scaler")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -388,12 +363,14 @@ def _compute_aggregates(directed: pd.DataFrame) -> Aggregates:
     opp_seen = d.groupby(["Nom", "Opp_Kata"])["Athlete_Win"].count().reset_index()
     opp_seen.rename(columns={"Athlete_Win": "Seen_Count"}, inplace=True)
 
-    # Flag-era WR
-    d_flag = d[d["Note"].isna()].copy()
+    # Flag era: mean share of the judging panel (flags / 5 or 7 judges), as in training
+    d_flag = d[d["Drapeau"].notna()].copy()
     if not d_flag.empty:
-        flag_agg = d_flag.groupby("Nom")["Athlete_Win"].agg(["sum", "count"]).reset_index()
-        flag_agg.rename(columns={"sum": "Flag_Wins", "count": "Flag_Total"}, inplace=True)
-        flag_agg["Flag_WinRate"] = (flag_agg["Flag_Wins"] + 2) / (flag_agg["Flag_Total"] + 4)
+        d_flag["Flag_Share"] = d_flag["Drapeau"].astype(float) / d_flag["Type_Compet"].astype(str).map(type_max_flags)
+        flag_agg = d_flag.groupby("Nom").agg(
+            Flag_WinRate=("Flag_Share", "mean"),
+            Flag_Total=("Flag_Share", "count"),
+        ).reset_index()
         athlete_flag_stats = flag_agg[["Nom", "Flag_WinRate", "Flag_Total"]].copy()
     else:
         athlete_flag_stats = pd.DataFrame(columns=["Nom", "Flag_WinRate", "Flag_Total"])
@@ -464,7 +441,7 @@ def _get_aggregates(df: pd.DataFrame) -> Tuple:
 # Feature computation for prediction
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_a, nom_b):
+def _compute_base_features(df_scope, ag, matches_scope, scope_choice, nom_a, nom_b):
     """Compute pair-level features (independent of kata)."""
     nation_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Nation"], default="")
     nation_b = safe_mode(df_scope[df_scope["Nom"] == nom_b]["Nation"], default="")
@@ -508,9 +485,9 @@ def _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, no
             h2h_wr_a = wr_A if str(nom_a) == a_key else (1.0 - wr_A)
     h2h_adv = (h2h_wr_a - 0.5) * np.log1p(h2h_total)
 
-    is_k1 = 1 if selected_type_compet == "Premier League (K1)" else (
-        0 if selected_type_compet == "Series A (SA)" else 1
-    )
+    # Simulated context: K1 (also the default for "Tous"), SA, or a continental championship
+    is_k1 = 1 if scope_choice in ("K1", "ALL") else 0
+    is_champ = 1 if scope_choice == "CHAMP" else 0
     is_male = 1 if safe_mode(df_scope[df_scope["Nom"] == nom_a]["Sexe"], default="M") == "M" else 0
 
     # Match counts
@@ -611,7 +588,7 @@ def _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, no
 
     return {
         "same_nation": same_nation, "same_style": same_style,
-        "is_k1": is_k1, "is_male": is_male, "is_home": is_home,
+        "is_k1": is_k1, "is_champ": is_champ, "is_male": is_male, "is_home": is_home,
         "winrate_adv": winrate_adv, "ranking_adv": ranking_adv,
         "h2h_adv": h2h_adv, "h2h_wr_a": h2h_wr_a,
         "a_wr": a_wr, "b_wr": b_wr,
@@ -643,7 +620,7 @@ def _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, no
 
 def _compute_transfer_score(base_feats: dict, a_kata_wr: float, tour_rank: float) -> float:
     """Compute transfer score using the pre-trained transfer model."""
-    tf_model, tf_features = _load_transfer_model()
+    tf_model, tf_features, tf_scaler = _load_transfer_model()
     if tf_model is None:
         return 0.0
 
@@ -669,11 +646,13 @@ def _compute_transfer_score(base_feats: dict, a_kata_wr: float, tour_rank: float
         "Ranking_x_Tour": log_rank_ratio * tour_rank,
         "Ranking_x_IsMale": log_rank_ratio * base_feats["is_male"],
     }
-    tf_X = pd.DataFrame([tf_dict])[tf_features]
+    tf_X = pd.DataFrame([tf_dict])[tf_features].astype(float)
+    if tf_scaler is not None:
+        tf_X = tf_scaler.transform(tf_X)
     return float(tf_model.predict(tf_X)[0])
 
 
-def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats, is_red=1):
+def _predict_for_katas(model, model_features, ag, nom_a, nom_b, n_tour, katas, base_feats, is_red=1):
     """Predict win probability for each kata using the LightGBM model.
     
     nom_a = the athlete whose katas we're testing (perspective athlete).
@@ -742,7 +721,7 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats, is_re
         winrate_x_tour = base_feats["winrate_adv"] * tour_rank
         katawr_x_tour = a_kata_wr * tour_rank
 
-        # Build feature vector (ORDER MUST MATCH MODEL_FEATURES)
+        # Build feature vector (selected in the order saved with the model)
         feat_dict = {
             "WinRate_Adv": base_feats["winrate_adv"],
             "Ranking_Adv": base_feats["ranking_adv"],
@@ -769,6 +748,7 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats, is_re
             "Same_Nation": base_feats["same_nation"],
             "Same_Style": base_feats["same_style"],
             "Is_K1": base_feats["is_k1"],
+            "Is_Champ": base_feats["is_champ"],
             "Is_Male": base_feats["is_male"],
             "Is_Red": is_red,
             "Is_Home": base_feats["is_home"],
@@ -780,7 +760,7 @@ def _predict_for_katas(model, ag, nom_a, nom_b, n_tour, katas, base_feats, is_re
             "Kata_Diversity_Diff": base_feats["kata_diversity_diff"],
         }
 
-        X = pd.DataFrame([feat_dict])[MODEL_FEATURES]
+        X = pd.DataFrame([feat_dict])[model_features]
         p_model = float(model.predict_proba(X)[0, 1])
 
         # Shrinkage (confidence = f(data available))
@@ -869,30 +849,37 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
     st.header(t("Probabilité de victoire par kata"))
     show_tab_help("proba_victoire")
 
+    # Load pre-trained model
+    model, model_features, model_metrics = _load_kata_victory_model()
+    if model is None:
+        st.error(t("Modèle introuvable. Lancez d'abord train.py dans model/proba_kata_victory/."))
+        return
+
+    model_name = t(_MODEL_NAMES.get(model_metrics.get("model"), str(model_metrics.get("model", "?"))))
+    auc = model_metrics.get("auc_roc")
+    auc_txt = f"AUC = {auc:.3f}" if auc is not None else "AUC = ?"
+    n_feats = len(model_features)
+
     if get_lang() == "en":
         st.markdown(
-            """
-**Model v5 — LightGBM (pre-trained, AUC = 0.977)**
-- Uses **34 features**: ranking, win rate, H2H, momentum (5 & 15 matches), note trend, transfer score, kata consistency, opponent weakness, flag performance, age, experience, win streak, kata diversity, interactions.
+            f"""
+**Model v6 — {model_name} (pre-trained, {auc_txt} on the most recent matches)**
+- Trained on **K1, SA and continental championships (EKF, AKF, PKF, UFAK)**.
+- Uses **{n_feats} features**: ranking, win rate, H2H, momentum (5 & 15 matches), note trend, transfer score, kata consistency, opponent weakness, flag performance (share of the 5 or 7 judges), age, experience, win streak, kata diversity, competition type, interactions.
 - Anti-bias: if A/B have little history, probability is **pulled toward 50%** (shrinkage).
 - Dual view: predictions from **both** Red and Blue perspectives.
             """
         )
     else:
         st.markdown(
-            """
-**Modèle v5 — LightGBM (pré-entraîné, AUC = 0.977)**
-- Utilise **34 features** : ranking, win rate, H2H, momentum (5 & 15 matchs), tendance de notes, transfer score, consistance kata, faiblesse adversaire, performance drapeaux, âge, expérience, série en cours, diversité kata, interactions.
+            f"""
+**Modèle v6 — {model_name} (pré-entraîné, {auc_txt} sur les matchs les plus récents)**
+- Entraîné sur **K1, SA et championnats continentaux (EKF, AKF, PKF, UFAK)**.
+- Utilise **{n_feats} features** : ranking, win rate, H2H, momentum (5 & 15 matchs), tendance de notes, transfer score, consistance kata, faiblesse adversaire, performance drapeaux (part des 5 ou 7 juges), âge, expérience, série en cours, diversité kata, type de compétition, interactions.
 - Anti-biais : si A/B ont peu d'historique, on **ramène la proba vers 50%** (shrinkage).
 - Vue duale : prédictions des **deux** perspectives Rouge et Bleu.
             """
         )
-
-    # Load pre-trained model
-    model, model_features = _load_kata_victory_model()
-    if model is None:
-        st.error(t("Modèle introuvable. Lancez d'abord train.py dans model/proba_kata_victory/."))
-        return
 
     df = data.copy()
     if "Note" in df.columns and df["Note"].dtype == object:
@@ -914,14 +901,8 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
         st.markdown(t("### 🎯 Paramètres"))
 
-        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-        selected_type_compet = st.radio(t("Type de compétition"), type_compet_options, key="proba_type_compet")
-
-        df_scope = df.copy()
-        if selected_type_compet == "Premier League (K1)":
-            df_scope = df_scope[df_scope["Type_Compet"] == "K1"]
-        elif selected_type_compet == "Series A (SA)":
-            df_scope = df_scope[df_scope["Type_Compet"] == "SA"]
+        scope = type_compet_filter(df, "proba")
+        df_scope = scope.data
 
         athlete_names = sorted(df_scope["Nom"].dropna().unique().tolist())
         if not athlete_names:
@@ -946,13 +927,19 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         nom_b = st.selectbox(t("🔵 Athlète B (shiro / bleu)"), athlete_b_names, key="proba_nom_b")
 
-        tour_options = sorted(df_scope["N_Tour"].dropna().astype(str).unique().tolist())
+        tour_options = sorted(
+            df_scope["N_Tour"].dropna().astype(str).unique().tolist(),
+            key=lambda v: (TOUR_ORDER.get(v, 5), v),
+        )
         if not tour_options:
             st.warning(t("Aucun tour disponible."))
             filter_panel_close()
             return
 
-        n_tour = st.selectbox(t("Tour simulé"), tour_options, format_func=fmt_tour, key="proba_tour")
+        n_tour = st.selectbox(
+            t("Tour simulé"), tour_options,
+            format_func=lambda v: fmt_tour(v, scope.single_type), key="proba_tour",
+        )
 
         # ── Katas pour A (rouge) ──
         style_a = safe_mode(df_scope[df_scope["Nom"] == nom_a]["Style"], default=None)
@@ -1027,25 +1014,35 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         # Model info
         with st.expander(t("📊 Performance du modèle")):
+            def _pct(key):
+                v = model_metrics.get(key)
+                return f"{v * 100:.1f}%" if v is not None else "—"
+
+            def _num(key):
+                v = model_metrics.get(key)
+                return f"{v:.3f}" if v is not None else "—"
+
             st.markdown(
-                f"- **Modèle** : LightGBM + Optuna (pré-entraîné)\n"
-                f"- **Accuracy (test)** : 92.7%\n"
-                f"- **AUC ROC (test)** : 0.977\n"
-                f"- **AUC CV (5-fold)** : 0.944\n"
-                f"- **Features** : 34\n"
-                f"- **Train/Test split** : chronologique (80/20)"
+                f"- **{t('Modèle')}** : {model_name} ({t('pré-entraîné')})\n"
+                f"- **Accuracy (test)** : {_pct('accuracy')}\n"
+                f"- **AUC ROC (test)** : {_num('auc_roc')}\n"
+                f"- **Brier score (test)** : {_num('brier_score')}\n"
+                f"- **Features** : {n_feats}\n"
+                f"- **{t('Données')}** : K1, SA, EKF, AKF, PKF, UFAK (2024-2026)\n"
+                f"- **Train/Test split** : {t('chronologique (80/20), le test contient les compétitions les plus récentes')}"
             )
-            st.markdown(t("##### Top features (importance)"))
-            st.caption("Transfer_Score, Ranking_Adv, H2H_Adv, Note_Diff, WinRate_Adv, "
-                       "Momentum_Diff, A_Kata_WR, Exp_Diff, Kata_Diversity_Diff, Note_Trend_Diff")
+            if hasattr(model, "feature_importances_"):
+                imp = pd.Series(model.feature_importances_, index=model_features).sort_values(ascending=False)
+                st.markdown(t("##### Top features (importance)"))
+                st.caption(", ".join(imp.head(10).index))
 
         # ── Compute base features for both perspectives ──
-        base_feats_a = _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_a, nom_b)
-        base_feats_b = _compute_base_features(df_scope, ag, matches_scope, selected_type_compet, nom_b, nom_a)
+        base_feats_a = _compute_base_features(df_scope, ag, matches_scope, scope.choice, nom_a, nom_b)
+        base_feats_b = _compute_base_features(df_scope, ag, matches_scope, scope.choice, nom_b, nom_a)
 
         # ── Predictions (manual) ──
         if run_manual:
-            st.subheader(f"{nom_a} vs {nom_b} · {fmt_tour(n_tour)}")
+            st.subheader(f"{nom_a} vs {nom_b} · {fmt_tour(n_tour, scope.single_type)}")
 
             col_red, col_blue = st.columns(2)
 
@@ -1054,7 +1051,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 st.markdown(f"### 🔴 {nom_a}")
                 if katas_selectionnes_a:
                     res_a = _predict_for_katas(
-                        model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
+                        model=model, model_features=model_features, ag=ag, nom_a=nom_a, nom_b=nom_b,
                         n_tour=str(n_tour), katas=list(map(str, katas_selectionnes_a)),
                         base_feats=base_feats_a, is_red=1,
                     )
@@ -1071,7 +1068,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 st.markdown(f"### 🔵 {nom_b}")
                 if katas_selectionnes_b:
                     res_b = _predict_for_katas(
-                        model=model, ag=ag, nom_a=nom_b, nom_b=nom_a,
+                        model=model, model_features=model_features, ag=ag, nom_a=nom_b, nom_b=nom_a,
                         n_tour=str(n_tour), katas=list(map(str, katas_selectionnes_b)),
                         base_feats=base_feats_b, is_red=0,
                     )
@@ -1085,7 +1082,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
 
         # ── Top 3 ──
         if run_top3:
-            st.subheader(f"🏆 Top 3 · {nom_a} vs {nom_b} · {fmt_tour(n_tour)}")
+            st.subheader(f"🏆 Top 3 · {nom_a} vs {nom_b} · {fmt_tour(n_tour, scope.single_type)}")
 
             col_red, col_blue = st.columns(2)
 
@@ -1104,7 +1101,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 if candidates_a:
                     st.caption(f"📌 {source_a}")
                     res_top_a = _predict_for_katas(
-                        model=model, ag=ag, nom_a=nom_a, nom_b=nom_b,
+                        model=model, model_features=model_features, ag=ag, nom_a=nom_a, nom_b=nom_b,
                         n_tour=str(n_tour), katas=candidates_a,
                         base_feats=base_feats_a, is_red=1,
                     )
@@ -1131,7 +1128,7 @@ def show_proba_victoire_kata_tab(data: pd.DataFrame) -> None:
                 if candidates_b:
                     st.caption(f"📌 {source_b}")
                     res_top_b = _predict_for_katas(
-                        model=model, ag=ag, nom_a=nom_b, nom_b=nom_a,
+                        model=model, model_features=model_features, ag=ag, nom_a=nom_b, nom_b=nom_a,
                         n_tour=str(n_tour), katas=candidates_b,
                         base_feats=base_feats_b, is_red=0,
                     )

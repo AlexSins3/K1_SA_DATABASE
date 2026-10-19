@@ -7,7 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from constants.competitions import CHAMPIONSHIP_TYPES, COMPET_TYPES
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter, compet_type_name
 from utils.interpretations import show_tab_help, show_chart_guide, interpret_score_differential, margin_color, _color_badge
 from utils.display import fmt_tour, fmt_df, format_display_df
 from utils.data_helpers import is_flag_era, classify_match_flags, classify_match_notes
@@ -19,7 +20,7 @@ _TOUR_ORDER = [
     "Pool_1", "Pool_2", "Pool_3",
     "PW1", "PW2", "PW3",
     "RP1", "RP2", "RP3", "RP4",
-    "R1", "R2",
+    "R1", "R2", "SM",
     "Bronze", "Final",
 ]
 
@@ -96,7 +97,8 @@ def _build_match_margins(df: pd.DataFrame) -> pd.DataFrame:
     is_flag = np.array([is_flag_era(y) for y in year_vals])
 
     valid_notes = ~(np.isnan(note_r) | np.isnan(note_b))
-    valid_flags = ~(np.isnan(flag_r) | np.isnan(flag_b))
+    # Double disqualification (0-0) is not a contested match
+    valid_flags = ~(np.isnan(flag_r) | np.isnan(flag_b)) & ((np.nan_to_num(flag_r) + np.nan_to_num(flag_b)) > 0)
     valid = np.where(is_flag, valid_flags, valid_notes)
 
     result = pd.DataFrame({
@@ -121,6 +123,8 @@ def _build_match_margins(df: pd.DataFrame) -> pd.DataFrame:
 
     result["Marge_Notes"] = (result["Note_Red"] - result["Note_Blue"]).abs()
     result["Marge_Flags"] = (result["Flag_Red"] - result["Flag_Blue"]).abs()
+    # Judging panel = total flags of the match (5 for SA/PKF, 7 for K1/EKF/AKF/UFAK)
+    result["Juges"] = result["Flag_Red"] + result["Flag_Blue"]
     result["Marge"] = np.where(result["Is_Flag_Era"], result["Marge_Flags"], result["Marge_Notes"])
 
     result["Vainqueur"] = np.where(
@@ -168,16 +172,22 @@ def show_match_analysis_tab(data: pd.DataFrame) -> None:
         st.markdown(t("### 🎛️ Filtres"))
 
         # Type compet
-        type_opts = [t("Tous"), "K1", "SA"]
-        sel_type = st.radio(t("Type compétition"), type_opts, key="ma_type")
+        scope = type_compet_filter(data, "ma", label="Type compétition")
+        sel_types = scope.types
 
         # Sexe
         sexe_opts = sorted(matches["Sexe"].dropna().unique().tolist()) if "Sexe" in matches.columns else []
         sel_sexe = st.selectbox(t("Sexe"), [t("Tous")] + sexe_opts, key="ma_sexe")
 
         # Tours
-        tours = sorted(matches["N_Tour"].unique().tolist())
-        sel_tours = st.multiselect(t("Tours"), tours, default=tours, format_func=fmt_tour, key="ma_tours")
+        tours = sorted(
+            matches[matches["Type_Compet"].astype(str).isin(sel_types)]["N_Tour"].astype(str).unique().tolist(),
+            key=_tour_rank,
+        )
+        sel_tours = st.multiselect(
+            t("Tours"), tours, default=tours,
+            format_func=lambda v: fmt_tour(v, scope.single_type), key="ma_tours",
+        )
 
         # Année
         years_available = sorted(matches["Year"].dropna().unique().tolist())
@@ -204,8 +214,7 @@ def show_match_analysis_tab(data: pd.DataFrame) -> None:
     with content_col:
         # Apply filters
         m = matches.copy()
-        if sel_type != t("Tous"):
-            m = m[m["Type_Compet"] == sel_type]
+        m = m[m["Type_Compet"].astype(str).isin(sel_types)]
         if sel_sexe != t("Tous") and "Sexe" in m.columns:
             m = m[m["Sexe"] == sel_sexe]
         if sel_tours:
@@ -231,16 +240,23 @@ def show_match_analysis_tab(data: pd.DataFrame) -> None:
         # Sub-tab 1: Score différentiel
         # ══════════════════════════════════════════════════════════════
         with tab_diff:
-            _render_score_differential(m, sel_athlete)
+            _render_score_differential(m, sel_athlete, scope.single_type)
 
         # ══════════════════════════════════════════════════════════════
         # Sub-tab 2: Avancement par tour (funnel)
         # ══════════════════════════════════════════════════════════════
         with tab_funnel:
-            _render_tour_funnel(data, sel_type, sel_sexe, sel_years, sel_athlete, sel_kata)
+            _render_tour_funnel(data, sel_types, sel_sexe, sel_years, sel_athlete, sel_kata)
 
 
-def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
+def _panel_title(m_panel: pd.DataFrame, n_judges: int) -> str:
+    """Chart title such as 'SA, PKF (5 juges)'."""
+    present = set(m_panel["Type_Compet"].astype(str))
+    types = ", ".join(c for c in COMPET_TYPES if c in present)
+    return f"{types} ({n_judges} {t('juges')})"
+
+
+def _render_score_differential(m: pd.DataFrame, sel_athlete: str, single_type=None) -> None:
     """Render score differential analysis."""
 
     m_notes = m[~m["Is_Flag_Era"]]
@@ -289,36 +305,37 @@ def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
         m_flags_disp["Score_L"] = m_flags_disp[["Flag_Red", "Flag_Blue"]].min(axis=1).astype(int)
         m_flags_disp["Score"] = m_flags_disp["Score_W"].astype(str) + "-" + m_flags_disp["Score_L"].astype(str)
 
-        m_flags_sa = m_flags_disp[m_flags_disp["Type_Compet"] == "SA"]
-        m_flags_k1 = m_flags_disp[m_flags_disp["Type_Compet"] == "K1"]
-        _score_order_sa = ["5-0", "4-1", "3-2"]
-        _score_order_k1 = ["7-0", "6-1", "5-2", "4-3"]
+        # Grouped by judging panel: 5 judges (SA, PKF) / 7 judges (K1, EKF, AKF, UFAK)
+        m_flags_5 = m_flags_disp[m_flags_disp["Juges"] == 5]
+        m_flags_7 = m_flags_disp[m_flags_disp["Juges"] == 7]
+        _score_order_5 = ["5-0", "4-1", "3-2"]
+        _score_order_7 = ["7-0", "6-1", "5-2", "4-3"]
 
-        col_sa, col_k1 = st.columns(2)
-        with col_sa:
-            if not m_flags_sa.empty:
-                sc_sa = m_flags_sa["Score"].value_counts().reindex(_score_order_sa, fill_value=0).reset_index()
-                sc_sa.columns = ["Score", "Matchs"]
-                sc_sa["Pct"] = (sc_sa["Matchs"] / sc_sa["Matchs"].sum() * 100).round(1)
-                fig_sa = px.bar(sc_sa, x="Score", y="Matchs", text="Pct",
-                    title=t("SA (5 juges)"), color_discrete_sequence=["#00CC96"],
-                    category_orders={"Score": _score_order_sa})
-                fig_sa.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-                st.plotly_chart(fig_sa, width="stretch", key="ma_hist_flags_sa")
+        col_5, col_7 = st.columns(2)
+        with col_5:
+            if not m_flags_5.empty:
+                sc_5 = m_flags_5["Score"].value_counts().reindex(_score_order_5, fill_value=0).reset_index()
+                sc_5.columns = ["Score", "Matchs"]
+                sc_5["Pct"] = (sc_5["Matchs"] / sc_5["Matchs"].sum() * 100).round(1)
+                fig_5 = px.bar(sc_5, x="Score", y="Matchs", text="Pct",
+                    title=_panel_title(m_flags_5, 5), color_discrete_sequence=["#00CC96"],
+                    category_orders={"Score": _score_order_5})
+                fig_5.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                st.plotly_chart(fig_5, width="stretch", key="ma_hist_flags_5")
             else:
-                st.info(t("Aucun match SA."))
-        with col_k1:
-            if not m_flags_k1.empty:
-                sc_k1 = m_flags_k1["Score"].value_counts().reindex(_score_order_k1, fill_value=0).reset_index()
-                sc_k1.columns = ["Score", "Matchs"]
-                sc_k1["Pct"] = (sc_k1["Matchs"] / sc_k1["Matchs"].sum() * 100).round(1)
-                fig_k1 = px.bar(sc_k1, x="Score", y="Matchs", text="Pct",
-                    title=t("K1 (7 juges)"), color_discrete_sequence=["#AB63FA"],
-                    category_orders={"Score": _score_order_k1})
-                fig_k1.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-                st.plotly_chart(fig_k1, width="stretch", key="ma_hist_flags_k1")
+                st.info(t("Aucun match à 5 juges."))
+        with col_7:
+            if not m_flags_7.empty:
+                sc_7 = m_flags_7["Score"].value_counts().reindex(_score_order_7, fill_value=0).reset_index()
+                sc_7.columns = ["Score", "Matchs"]
+                sc_7["Pct"] = (sc_7["Matchs"] / sc_7["Matchs"].sum() * 100).round(1)
+                fig_7 = px.bar(sc_7, x="Score", y="Matchs", text="Pct",
+                    title=_panel_title(m_flags_7, 7), color_discrete_sequence=["#AB63FA"],
+                    category_orders={"Score": _score_order_7})
+                fig_7.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                st.plotly_chart(fig_7, width="stretch", key="ma_hist_flags_7")
             else:
-                st.info(t("Aucun match K1."))
+                st.info(t("Aucun match à 7 juges."))
 
     # Marge par tour
     st.subheader(t("Marge par tour"))
@@ -326,7 +343,7 @@ def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
     m_sorted = m.copy()
     m_sorted["Tour_Rank"] = m_sorted["N_Tour"].apply(_tour_rank)
     m_sorted = m_sorted.sort_values("Tour_Rank")
-    m_sorted["Tour_Display"] = m_sorted["N_Tour"].apply(fmt_tour)
+    m_sorted["Tour_Display"] = m_sorted["N_Tour"].apply(lambda v: fmt_tour(v, single_type))
 
     fig_box = px.box(
         m_sorted, x="Tour_Display", y="Marge", points="outliers",
@@ -371,9 +388,10 @@ def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
                 f"- *Clear (0.5-1.5)*: gap between 0.5 and 1.5 points\n"
                 f"- *Dominant (>1.5)*: gap greater than 1.5 points\n\n"
                 f"**{t('Système drapeaux (2026+)')}**:\n"
-                f"- *Close (1 flag)*: SA 3-2 / K1 4-3\n"
-                f"- *Clear (2-3 flags)*: SA 4-1 / K1 5-2 or 6-1\n"
-                f"- *Unanimous*: SA 5-0 / K1 7-0"
+                f"- *Close (1 flag)*: 5 judges 3-2 / 7 judges 4-3\n"
+                f"- *Clear*: 5 judges 4-1 / 7 judges 5-2 or 6-1\n"
+                f"- *Unanimous*: 5 judges 5-0 / 7 judges 7-0\n\n"
+                f"5 judges: SA, PKF · 7 judges: K1, EKF, AKF, UFAK"
             )
         else:
             st.markdown(
@@ -382,9 +400,10 @@ def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
                 f"- *Nette (0.5-1.5)* : écart entre 0.5 et 1.5 points\n"
                 f"- *Dominante (>1.5)* : écart supérieur à 1.5 points\n\n"
                 f"**{t('Système drapeaux (2026+)')}** :\n"
-                f"- *Serré (1 drapeau)* : SA 3-2 / K1 4-3\n"
-                f"- *Net (2-3 drapeaux)* : SA 4-1 / K1 5-2 ou 6-1\n"
-                f"- *Unanime* : SA 5-0 / K1 7-0"
+                f"- *Serré (1 drapeau)* : 5 juges 3-2 / 7 juges 4-3\n"
+                f"- *Net* : 5 juges 4-1 / 7 juges 5-2 ou 6-1\n"
+                f"- *Unanime* : 5 juges 5-0 / 7 juges 7-0\n\n"
+                f"5 juges : SA, PKF · 7 juges : K1, EKF, AKF, UFAK"
             )
 
     # Si un athlète est sélectionné, montrer ses marges
@@ -420,7 +439,7 @@ def _render_score_differential(m: pd.DataFrame, sel_athlete: str) -> None:
                 )
 
 
-def _render_tour_funnel(data: pd.DataFrame, sel_type, sel_sexe, sel_years, sel_athlete, sel_kata) -> None:
+def _render_tour_funnel(data: pd.DataFrame, sel_types, sel_sexe, sel_years, sel_athlete, sel_kata) -> None:
     """Render tour advancement funnel."""
 
     df = data.copy()
@@ -432,8 +451,7 @@ def _render_tour_funnel(data: pd.DataFrame, sel_type, sel_sexe, sel_years, sel_a
 
     # Apply same filters
     d = df.copy()
-    if sel_type != t("Tous"):
-        d = d[d["Type_Compet"] == sel_type]
+    d = d[d["Type_Compet"].astype(str).isin(sel_types)]
     if sel_sexe != t("Tous") and "Sexe" in d.columns:
         d = d[d["Sexe"] == sel_sexe]
     if sel_years:
@@ -464,42 +482,54 @@ def _render_tour_funnel(data: pd.DataFrame, sel_type, sel_sexe, sel_years, sel_a
 
     show_chart_guide("funnel")
 
+    def _render_funnel(sub, type_code, key):
+        tc = _build_tour_counts(sub)
+        if tc.empty:
+            return
+        tc["Tour_Display"] = tc["Tour"].apply(lambda v: fmt_tour(v, type_code))
+        fig = go.Figure(go.Funnel(
+            y=tc["Tour_Display"], x=tc["Nb athlètes"],
+            textinfo="value+percent initial",
+            marker=dict(color=(px.colors.sequential.Teal * 2)[:len(tc)]),
+        ))
+        fig.update_layout(title=type_code, height=350)
+        st.plotly_chart(fig, width="stretch", key=key)
+
     # Funnel K1 / SA side by side
-    sub_k1 = d[d["Type_Compet"] == "K1"] if sel_type == t("Tous") or sel_type == "K1" else pd.DataFrame()
-    sub_sa = d[d["Type_Compet"] == "SA"] if sel_type == t("Tous") or sel_type == "SA" else pd.DataFrame()
+    show_k1 = "K1" in sel_types
+    show_sa = "SA" in sel_types
+    if show_k1 or show_sa:
+        col_k1, col_sa = st.columns(2)
+        with col_k1:
+            if show_k1:
+                st.markdown("**Premier League (K1)**")
+                sub_k1 = d[d["Type_Compet"] == "K1"]
+                if sub_k1.empty:
+                    st.info(t("Aucune donnée K1."))
+                else:
+                    _render_funnel(sub_k1, "K1", "ma_funnel_k1")
+        with col_sa:
+            if show_sa:
+                st.markdown("**Series A (SA)**")
+                sub_sa = d[d["Type_Compet"] == "SA"]
+                if sub_sa.empty:
+                    st.info(t("Aucune donnée SA."))
+                else:
+                    _render_funnel(sub_sa, "SA", "ma_funnel_sa")
 
-    col_k1, col_sa = st.columns(2)
-    with col_k1:
-        st.markdown("**Premier League (K1)**")
-        if sub_k1.empty:
-            st.info(t("Aucune donnée K1."))
-        else:
-            tc_k1 = _build_tour_counts(sub_k1)
-            if not tc_k1.empty:
-                tc_k1["Tour_Display"] = tc_k1["Tour"].apply(fmt_tour)
-                fig_f_k1 = go.Figure(go.Funnel(
-                    y=tc_k1["Tour_Display"], x=tc_k1["Nb athlètes"],
-                    textinfo="value+percent initial",
-                    marker=dict(color=px.colors.sequential.Teal[:len(tc_k1)]),
-                ))
-                fig_f_k1.update_layout(title="K1", height=350)
-                st.plotly_chart(fig_f_k1, width="stretch", key="ma_funnel_k1")
-
-    with col_sa:
-        st.markdown("**Series A (SA)**")
-        if sub_sa.empty:
-            st.info(t("Aucune donnée SA."))
-        else:
-            tc_sa = _build_tour_counts(sub_sa)
-            if not tc_sa.empty:
-                tc_sa["Tour_Display"] = tc_sa["Tour"].apply(fmt_tour)
-                fig_f_sa = go.Figure(go.Funnel(
-                    y=tc_sa["Tour_Display"], x=tc_sa["Nb athlètes"],
-                    textinfo="value+percent initial",
-                    marker=dict(color=px.colors.sequential.Teal[:len(tc_sa)]),
-                ))
-                fig_f_sa.update_layout(title="SA", height=350)
-                st.plotly_chart(fig_f_sa, width="stretch", key="ma_funnel_sa")
+    # Funnels championnats continentaux (formats différents → un funnel par championnat)
+    champ_types = [
+        c for c in CHAMPIONSHIP_TYPES
+        if c in sel_types and not d[d["Type_Compet"] == c].empty
+    ]
+    if champ_types:
+        st.markdown("**" + t("Championnats continentaux") + "**")
+        for i in range(0, len(champ_types), 2):
+            cols = st.columns(2)
+            for col, c in zip(cols, champ_types[i:i + 2]):
+                with col:
+                    st.markdown(f"*{compet_type_name(c)}*")
+                    _render_funnel(d[d["Type_Compet"] == c], c, f"ma_funnel_{c}")
 
     # Note crescendo by tour
     st.markdown("---")

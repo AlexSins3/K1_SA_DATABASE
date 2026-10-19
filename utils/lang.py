@@ -707,6 +707,130 @@ _TRANSLATIONS = {
     "Profil des athlètes": "Athlete profile",
     "Âge moyen": "Average age",
     "Top 3 utilisateurs": "Top 3 users",
+    "Win rate par type de compétition": "Win rate by competition type",
+    "Performance drapeaux (2026+)": "Flag performance (2026+)",
+    "Drapeaux moyens obtenus": "Average flags obtained",
+    "Drapeaux moy.": "Avg. flags",
+    "Win rate (ère drapeaux)": "Win rate (flag era)",
+    "Synthèse comparative": "Comparative summary",
+    "Meilleur win rate": "Best win rate",
+    "Meilleure note moy.": "Best avg. score",
+    "Plus joué": "Most played",
+
+    # ── Championnats continentaux (EKF, AKF, PKF, UFAK) ──
+    "Suivi & Analyse des Katas – Premier League (K1), Series A (SA) & Championnats continentaux":
+        "Kata Tracking & Analysis – Premier League (K1), Series A (SA) & Continental Championships",
+    "Championnats continentaux": "Continental championships",
+    "Championnats": "Championships",
+    "Aux championnats continentaux (EKF, AKF, PKF, UFAK), les tableaux sont plus petits "
+    "et les têtes de série plus nombreuses en proportion.":
+        "At continental championships (EKF, AKF, PKF, UFAK), brackets are smaller "
+        "and seeds are proportionally more numerous.",
+    "juges": "judges",
+    "Aucun match à 5 juges.": "No 5-judge match.",
+    "Aucun match à 7 juges.": "No 7-judge match.",
+
+    # ── Tour labels (all formats) ──
+    "1er tour": "1st round",
+    "2ème tour": "2nd round",
+    "3ème tour": "3rd round",
+    "8ème de finale": "Round of 16",
+    "Demi-finale": "Semi-final",
+    "1er tour de repêchage": "1st repechage round",
+    "2ème tour de repêchage": "2nd repechage round",
+    "3ème tour de repêchage": "3rd repechage round",
+    "4ème tour de repêchage": "4th repechage round",
+    "1er Tour repêchage": "1st repechage round",
+    "2ème Tour repêchage": "2nd repechage round",
+    "3ème Tour repêchage": "3rd repechage round",
+    "4ème Tour repêchage": "4th repechage round",
+    "Repêchage": "Repechage",
+    "Bronze": "Bronze",
+
+    # ── Probabilité de score (drapeaux) ──
+    "Probabilité de score": "Score probability",
+    "Prédiction du score aux drapeaux": "Flag score prediction",
+    "Aucun modèle de score disponible. Lancez d'abord l'entraînement.":
+        "No score model available. Run the training first.",
+    "Paramètres": "Parameters",
+    "Format": "Format",
+    "Athlète A (aka)": "Athlete A (aka)",
+    "Athlète B (shiro)": "Athlete B (shiro)",
+    "🎯 Prédire le score": "🎯 Predict the score",
+    "Sélectionnez deux athlètes et cliquez sur 'Prédire le score'.":
+        "Select two athletes and click 'Predict the score'.",
+    "Calcul en cours...": "Computing...",
+    "Données insuffisantes pour cette paire d'athlètes.": "Insufficient data for this pair of athletes.",
+    "Modèle non disponible pour ce format.": "Model not available for this format.",
+    "Nombre de drapeaux prédit pour A": "Predicted number of flags for A",
+    "Nombre de drapeaux prédit pour B": "Predicted number of flags for B",
+    "Indéterminé": "Undetermined",
+    "Vainqueur prédit": "Predicted winner",
+    "Distribution des scores probables": "Distribution of probable scores",
+    "gagne": "wins",
+    "Score (A - B)": "Score (A - B)",
+    "Probabilité (%)": "Probability (%)",
+    "Modèle": "Model",
+    "Précision": "Accuracy",
+    "drapeau": "flag",
+    "entraîné sur": "trained on",
+    "Logistique Ordinale": "Ordinal Logistic",
+
+    # ── Probabilité de victoire par kata ──
+    "Modèle introuvable. Lancez d'abord train.py dans model/proba_kata_victory/.":
+        "Model not found. Run train.py in model/proba_kata_victory/ first.",
+    "🔴 Athlète A (aka / rouge)": "🔴 Athlete A (aka / red)",
+    "🔵 Athlète B (shiro / bleu)": "🔵 Athlete B (shiro / blue)",
+    "#### 🔴 Katas testés (A)": "#### 🔴 Tested katas (A)",
+    "Katas à tester (A)": "Katas to test (A)",
+    "#### 🔵 Katas testés (B)": "#### 🔵 Tested katas (B)",
+    "Katas à tester (B)": "Katas to test (B)",
+    "#### 🏆 Top 3 katas": "#### 🏆 Top 3 katas",
+    "🏆 Top 3 (les deux)": "🏆 Top 3 (both)",
+    "🎯 Calculer les probabilités": "🎯 Compute probabilities",
+    "Win rate global de A": "Overall win rate of A",
+    "Win rate global de B": "Overall win rate of B",
+    "📊 Performance du modèle": "📊 Model performance",
+    "##### Top features (importance)": "##### Top features (importance)",
+    "Aucun kata sélectionné pour A.": "No kata selected for A.",
+    "Aucun kata sélectionné pour B.": "No kata selected for B.",
+    "katas déjà joués": "katas already played",
+    "Aucun kata candidat trouvé.": "No candidate kata found.",
+    "Sélectionnez les paramètres puis cliquez sur 'Calculer les probabilités' ou 'Top 3'.":
+        "Select the parameters then click 'Compute probabilities' or 'Top 3'.",
+    "pré-entraîné": "pre-trained",
+    "Données": "Data",
+    "chronologique (80/20), le test contient les compétitions les plus récentes":
+        "chronological (80/20), the test set holds the most recent competitions",
+    "Régression logistique": "Logistic regression",
+    "Régression logistique (sélection de variables)": "Logistic regression (feature selection)",
+
+    # ── Match analysis ──
+    "Impossible de reconstruire des matchs.": "Unable to reconstruct matches.",
+    "#### 🔎 Filtre athlète / kata": "#### 🔎 Athlete / kata filter",
+    "Athlète (optionnel)": "Athlete (optional)",
+    "Kata (optionnel)": "Kata (optional)",
+    "% serrés": "% close",
+    "Distribution des marges": "Margin distribution",
+    "Marge de victoire (système notes, avant 2026)": "Victory margin (scoring system, before 2026)",
+    "Écart de notes": "Score gap",
+    "Marge de victoire par tour": "Victory margin by round",
+    "Marge": "Margin",
+    "Répartition des types de victoire": "Victory type distribution",
+    "Système drapeaux (2026+)": "Flag system (2026+)",
+
+    # ── Dataset / misc ──
+    "#### 🧑 Sexe": "#### 🧑 Gender",
+    "Qualité des données": "Data quality",
+    "**Valeurs manquantes par colonne :**": "**Missing values per column:**",
+    "Colonne": "Column",
+    "Manquantes": "Missing",
+    "Aucune valeur manquante dans le dataset filtré.": "No missing values in the filtered dataset.",
+    "**Statistiques descriptives (variables numériques) :**": "**Descriptive statistics (numeric variables):**",
+    "Nb valeurs": "Count",
+    "Suggestions d'analyses": "Analysis suggestions",
+    "Les deux athlètes ne se sont pas encore affrontés (ou pas avec les filtres actuels).":
+        "The two athletes have not met yet (or not with the current filters).",
 }
 
 

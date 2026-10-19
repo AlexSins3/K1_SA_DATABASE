@@ -32,7 +32,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import cross_val_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prepare_data import load_raw_data, pair_matches, get_compet_chrono_rank
+from prepare_data import load_raw_data, pair_matches, get_compet_chrono_rank, TOUR_RANK
 
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -101,14 +101,7 @@ def compute_transfer_features(matches: pd.DataFrame) -> pd.DataFrame:
     df["Is_K1"] = (df["Type_Compet"] == "K1").astype(int)
     df["Is_Male"] = (df["Sexe"] == "M").astype(int)
     
-    tour_order = {
-        "Pool_1": 1, "Pool_2": 2, "Pool_3": 3,
-        "T1": 1, "T2": 2, "T3": 3,
-        "PW1": 4, "PW2": 5, "PW3": 6,
-        "RP1": 4, "RP2": 5, "RP3": 6, "RP4": 7,
-        "R1": 7, "R2": 8, "Bronze": 9, "Final": 10,
-    }
-    df["Tour_Rank"] = df["N_Tour"].map(tour_order).fillna(5) / 10.0
+    df["Tour_Rank"] = df["N_Tour"].map(TOUR_RANK).fillna(5) / 10.0
     
     df["Is_Home_A"] = (df["A_Continent"].astype(str) == df.get("A_Region", "").astype(str)).astype(int)
     df["Is_Home_B"] = (df["B_Continent"].astype(str) == df.get("B_Region", "").astype(str)).astype(int)

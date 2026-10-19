@@ -110,7 +110,7 @@ _TAB_HELP = {
 **Objectif :** Explorer et filtrer la base de données brute des compétitions de kata.
 
 **Comment l'utiliser :**
-- Utilisez les **filtres à gauche** pour cibler un type de compétition, une année, un sexe, etc.
+- Utilisez les **filtres à gauche** pour cibler un type de compétition (K1, SA ou championnats continentaux EKF / AKF / PKF / UFAK), une année, un sexe, etc.
 - Les **4 indicateurs en haut** résument les données filtrées (nombre de lignes, athlètes, compétitions, katas distincts).
 - Vous pouvez **télécharger** le tableau filtré en CSV pour l'analyser dans Excel.
 
@@ -122,7 +122,7 @@ _TAB_HELP = {
 
 **Ce que vous trouverez ici :**
 - 📋 **Fiche athlète** : sexe, âge, ranking, nationalité, style
-- 📊 **Tour maximal par compétition** : jusqu'où l'athlète est allé à chaque compétition (barres = tours atteints)
+- 📊 **Tour maximal par compétition** : jusqu'où l'athlète est allé à chaque compétition (barres = tours atteints), en K1, en SA et aux championnats continentaux
 - 🥋 **Katas utilisés** : quels katas l'athlète a performé et combien de fois
 - 🕸️ **Radar par tour** : note moyenne à chaque phase de compétition → forme grande et régulière = performances stables
 - 🕸️ **Radar par kata** : note moyenne par kata → identifie les katas forts et faibles
@@ -269,7 +269,8 @@ _TAB_HELP = {
 **Objectif :** Estimer la probabilité de victoire d'un athlète A contre un adversaire B selon le kata choisi.
 
 **Comment ça marche (en simple) :**
-- Le modèle analyse **22 critères** historiques : notes, ranking, face-à-face, dynamique récente, âge, kata favori, expérience, etc.
+- Le modèle analyse une **trentaine de critères** historiques : notes, drapeaux, ranking, face-à-face, dynamique récente, âge, kata favori, expérience, type de compétition, etc.
+- Il est entraîné sur tous les matchs K1, SA et des championnats continentaux (EKF, AKF, PKF, UFAK), dans l'ordre chronologique
 - Il calcule une **probabilité de victoire** pour chaque kata que A pourrait jouer
 - Un **indice de confiance** (0 à 1) indique la fiabilité : proche de 1 = beaucoup de données, proche de 0 = peu de données → la proba est ramenée vers 50%
 
@@ -278,11 +279,12 @@ _TAB_HELP = {
 - 🟠 **45-60%** : match ouvert, difficile à prédire
 - 🔴 **< 45%** : A est défavorisé avec ce kata
 
-**Les 22 critères en langage coach :**
+**Les principaux critères en langage coach :**
 | Critère technique | Ce que ça veut dire |
 |---|---|
 | Win rate / H2H | Historique de victoires global et face-à-face |
 | Note moyenne / Diff. notes | Niveau de notation et écart entre les deux athlètes |
+| Drapeaux | Part moyenne des drapeaux obtenus (sur 5 ou 7 juges selon la compétition) |
 | Ranking | Classement mondial relatif |
 | Tendance de notes | L'athlète progresse ou régresse récemment ? |
 | Momentum | Taux de victoire sur les 15 derniers matchs |
@@ -292,7 +294,8 @@ _TAB_HELP = {
 | Diversité kata | L'athlète est-il polyvalent ? |
 | B connaît le kata | L'adversaire a-t-il déjà affronté ce kata ? |
 | Avantage géographique | A joue-t-il "à domicile" (même continent) ? |
-| Tour | Phase de la compétition (poule, finale, etc.) |
+| Tour | Phase de la compétition (poule, demi-finale, finale, etc.) |
+| Type de compétition | K1, SA ou championnat continental |
 
 **Attention :** Le modèle se base sur l'**historique**. Il ne peut pas prévoir la forme du jour, les blessures, le stress, ni la stratégie surprise d'un adversaire.
 
@@ -325,9 +328,13 @@ _TAB_HELP = {
 - Sélectionnez un **kata** pour voir les marges quand ce kata est joué
 
 **Les 3 types de victoire :**
-- 🟢 **Serrée** (<0.5 pts ou 1 drapeau d'écart)
-- 🟠 **Nette** (0.5-1.5 pts ou 2-3 drapeaux)
-- 🔴 **Dominante** (>1.5 pts ou 4+ drapeaux)
+- 🟢 **Serrée** (<0.5 pts ou 1 drapeau d'écart : 3-2 / 4-3)
+- 🟠 **Nette** (0.5-1.5 pts ou 4-1 / 5-2 / 6-1)
+- 🔴 **Dominante / Unanime** (>1.5 pts ou 5-0 / 7-0)
+
+**Jurys :** 5 juges en SA et PKF, 7 juges en K1, EKF, AKF et UFAK : les répartitions de scores sont donc présentées par jury.
+
+**Championnats continentaux :** leurs formats diffèrent (4, 2 ou 1 poule) ; le funnel est affiché séparément pour chaque championnat.
 
 **Astuce coach :** Filtrez sur votre athlète + ses adversaires potentiels pour voir si les matchs sont typiquement serrés ou non.
 """,
@@ -415,16 +422,27 @@ _CHART_GUIDES = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def interpret_score_differential(m_df) -> str:
-    """Generate a natural language interpretation for score differential data."""
-    pct_serres = (m_df["Marge"] < 0.5).mean() * 100
-    marge_moy = m_df["Marge"].mean()
-    n_matchs = len(m_df)
+    """Generate a natural language interpretation for score differential data.
+
+    Works for both judging systems: scores (2024-2025, close = <0.5 pt) and
+    flags (2026+, close = 1 flag gap, e.g. 3-2 or 4-3).
+    """
+    if "Type_Victoire" in m_df.columns:
+        pct_serres = m_df["Type_Victoire"].astype(str).str.startswith("Serr").mean() * 100
+    else:
+        pct_serres = (m_df["Marge"] < 0.5).mean() * 100
+
+    if "Is_Flag_Era" in m_df.columns:
+        m_notes = m_df[~m_df["Is_Flag_Era"].astype(bool)]
+        m_flags = m_df[m_df["Is_Flag_Era"].astype(bool)]
+    else:
+        m_notes, m_flags = m_df, m_df.iloc[0:0]
 
     lines = []
     if get_lang() == "en":
         if pct_serres > 60:
             lines.append(
-                f"🟢 **{pct_serres:.0f}% of matches are close** (<0.5 pts gap) "
+                f"🟢 **{pct_serres:.0f}% of matches are close** (<0.5 pts or 1 flag gap) "
                 f"→ levels are very homogeneous, every detail counts."
             )
         elif pct_serres > 40:
@@ -437,16 +455,24 @@ def interpret_score_differential(m_df) -> str:
                 f"🔴 Only **{pct_serres:.0f}% of close matches** "
                 f"→ skill gaps are significant, victories are often clear."
             )
-        if marge_moy < 0.5:
-            lines.append(f"Average margin of **{marge_moy:.2f} pts** → highly contested competition.")
-        elif marge_moy < 1.0:
-            lines.append(f"Average margin of **{marge_moy:.2f} pts** → moderate gaps.")
-        else:
-            lines.append(f"Average margin of **{marge_moy:.2f} pts** → significant gaps between competitors.")
+        if not m_notes.empty:
+            marge_moy = m_notes["Marge"].mean()
+            if marge_moy < 0.5:
+                lines.append(f"Average margin of **{marge_moy:.2f} pts** → highly contested competition.")
+            elif marge_moy < 1.0:
+                lines.append(f"Average margin of **{marge_moy:.2f} pts** → moderate gaps.")
+            else:
+                lines.append(f"Average margin of **{marge_moy:.2f} pts** → significant gaps between competitors.")
+        if not m_flags.empty:
+            pct_unan = (m_flags["Type_Victoire"].astype(str) == "Unanime").mean() * 100
+            lines.append(
+                f"Flag system: average gap of **{m_flags['Marge'].mean():.1f} flags**, "
+                f"**{pct_unan:.0f}%** of unanimous decisions."
+            )
     else:
         if pct_serres > 60:
             lines.append(
-                f"🟢 **{pct_serres:.0f}% des matchs sont serrés** (<0.5 pts d'écart) "
+                f"🟢 **{pct_serres:.0f}% des matchs sont serrés** (<0.5 pt ou 1 drapeau d'écart) "
                 f"→ les niveaux sont très homogènes, chaque détail compte."
             )
         elif pct_serres > 40:
@@ -459,12 +485,20 @@ def interpret_score_differential(m_df) -> str:
                 f"🔴 Seulement **{pct_serres:.0f}% de matchs serrés** "
                 f"→ les écarts de niveau sont importants, les victoires sont souvent nettes."
             )
-        if marge_moy < 0.5:
-            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → compétition très disputée.")
-        elif marge_moy < 1.0:
-            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts modérés.")
-        else:
-            lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts importants entre les compétiteurs.")
+        if not m_notes.empty:
+            marge_moy = m_notes["Marge"].mean()
+            if marge_moy < 0.5:
+                lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → compétition très disputée.")
+            elif marge_moy < 1.0:
+                lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts modérés.")
+            else:
+                lines.append(f"Marge moyenne de **{marge_moy:.2f} pts** → écarts importants entre les compétiteurs.")
+        if not m_flags.empty:
+            pct_unan = (m_flags["Type_Victoire"].astype(str) == "Unanime").mean() * 100
+            lines.append(
+                f"Système drapeaux : écart moyen de **{m_flags['Marge'].mean():.1f} drapeaux**, "
+                f"**{pct_unan:.0f}%** de décisions unanimes."
+            )
 
     return "\n\n".join(lines)
 
@@ -667,6 +701,12 @@ GLOSSAIRE = """
 | **Funnel** | Graphique en entonnoir : montre combien d'athlètes restent à chaque tour de la compétition. |
 | **K1 / Premier League** | Le plus haut niveau de compétition de la WKF. |
 | **SA / Series A** | Deuxième niveau de compétition de la WKF. |
+| **Championnats continentaux** | Championnats seniors d'Europe (**EKF**), d'Asie (**AKF**), panaméricains (**PKF**) et d'Afrique (**UFAK**). |
+| **Drapeaux / juges** | Système 2026+ : chaque juge lève un drapeau. 5 juges en SA et PKF, 7 juges en K1, EKF, AKF et UFAK. |
+| **T1, T2, T3** | Tours de poule (1er, 2ème, 3ème tour). En AKF, PKF et UFAK, T3 correspond au quart de finale. |
+| **PW1 / PW2 / PW3** | Finale de poule / tableau des vainqueurs de poule (SA : 8ème, quart, demi). En EKF, PW1 = quart de finale. |
+| **SM** | Demi-finale des championnats continentaux (équivalent de PW3 en SA). |
+| **RP1 → RP4** | Tours de repêchage, menant au match pour la médaille de bronze. |
 """
 
 
@@ -704,6 +744,12 @@ GLOSSAIRE_EN = """
 | **Funnel** | Funnel chart: shows how many athletes remain at each competition round. |
 | **K1 / Premier League** | The highest WKF competition level. |
 | **SA / Series A** | Second WKF competition level. |
+| **Continental championships** | Senior European (**EKF**), Asian (**AKF**), Pan American (**PKF**) and African (**UFAK**) championships. |
+| **Flags / judges** | 2026+ system: each judge raises a flag. 5 judges in SA and PKF, 7 judges in K1, EKF, AKF and UFAK. |
+| **T1, T2, T3** | Pool rounds (1st, 2nd, 3rd round). In AKF, PKF and UFAK, T3 is the quarter-final. |
+| **PW1 / PW2 / PW3** | Pool final / pool-winners bracket (SA: round of 16, quarter, semi). In EKF, PW1 = quarter-final. |
+| **SM** | Semi-final of continental championships (equivalent to PW3 in SA). |
+| **RP1 → RP4** | Repechage rounds, leading to the bronze medal match. |
 """
 
 _TAB_HELP_EN = {
@@ -711,7 +757,7 @@ _TAB_HELP_EN = {
 **Purpose:** Explore and filter the raw karate competition database.
 
 **How to use:**
-- Use the **filters on the left** to target a competition type, year, gender, etc.
+- Use the **filters on the left** to target a competition type (K1, SA or continental championships EKF / AKF / PKF / UFAK), year, gender, etc.
 - The **4 indicators at the top** summarize the filtered data (row count, athletes, competitions, distinct katas).
 - You can **download** the filtered table as CSV for analysis in Excel.
 
@@ -723,7 +769,7 @@ _TAB_HELP_EN = {
 
 **What you'll find here:**
 - 📋 **Athlete card**: gender, age, ranking, nationality, style
-- 📊 **Max round per competition**: how far the athlete went in each competition
+- 📊 **Max round per competition**: how far the athlete went in each competition, in K1, SA and continental championships
 - 🥋 **Katas used**: which katas the athlete performed and how often
 - 🕸️ **Radar by round**: average score at each competition phase → large and regular shape = stable performances
 - 🕸️ **Radar by kata**: average score per kata → identifies strong and weak katas
@@ -841,7 +887,8 @@ _TAB_HELP_EN = {
 **Purpose:** Estimate the win probability of athlete A against opponent B according to the chosen kata.
 
 **How it works (simplified):**
-- The model analyzes **22 historical criteria**: scores, ranking, head-to-head, recent momentum, age, favorite kata, experience, etc.
+- The model analyzes **about thirty historical criteria**: scores, flags, ranking, head-to-head, recent momentum, age, favorite kata, experience, competition type, etc.
+- It is trained on all K1, SA and continental championship (EKF, AKF, PKF, UFAK) matches, in chronological order
 - It calculates a **win probability** for each kata A could perform
 - A **confidence index** (0 to 1) indicates reliability: close to 1 = lots of data, close to 0 = little data → probability is pulled toward 50%
 
@@ -881,9 +928,13 @@ _TAB_HELP_EN = {
 - Select a **kata** to see margins when that kata is performed
 
 **The 3 victory types:**
-- 🟢 **Close** (<0.5 pts or 1 flag gap)
-- 🟠 **Clear** (0.5-1.5 pts or 2-3 flags)
-- 🔴 **Dominant** (>1.5 pts or 4+ flags)
+- 🟢 **Close** (<0.5 pts or 1 flag gap: 3-2 / 4-3)
+- 🟠 **Clear** (0.5-1.5 pts or 4-1 / 5-2 / 6-1)
+- 🔴 **Dominant / Unanimous** (>1.5 pts or 5-0 / 7-0)
+
+**Panels:** 5 judges in SA and PKF, 7 judges in K1, EKF, AKF and UFAK, so score distributions are shown per panel.
+
+**Continental championships:** their formats differ (4, 2 or 1 pool); the funnel is shown separately for each championship.
 
 **Coach tip:** Filter on your athlete + their potential opponents to see if matches are typically close or not.
 """,

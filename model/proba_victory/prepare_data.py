@@ -5,7 +5,7 @@ Préparation des données V2 — Modèle de prédiction de victoire aux drapeaux
 Améliorations vs V1 :
 - Features riches inspirées du modèle kata (kata WR, style, H2H, diversité, trend...)
 - Transfert learning : modèle de dominance pré-entraîné sur les notes 2024-2025
-- Modèles séparés K1 (7 juges) et SA (5 juges)
+- Modèles séparés par jury : 7 juges (K1, EKF, AKF, UFAK) et 5 juges (SA, PKF)
 - Pipeline anti-leakage (tout calculé de façon cumulative/avant le match)
 """
 
@@ -17,40 +17,18 @@ import pandas as pd
 
 # ── Paths ──
 PROJECT_ROOT = Path(__file__).resolve().parents[2]  # model/proba_victory/ → model/ → K1_SA_DATABASE/
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-# ── Constantes chronologiques ──
-COMPET_CHRONO_ORDER = {
-    ("K1 Paris", 2024): 1, ("K1 Antalya", 2024): 2, ("K1 Cairo", 2024): 3,
-    ("K1 Casablanca", 2024): 4, ("SA Athens", 2024): 5, ("SA Larnaca", 2024): 6,
-    ("SA Salzbourg", 2024): 7,
-    ("K1 Hanghou", 2025): 8, ("K1 Rabat", 2025): 9, ("SA KualaLumpur", 2025): 10,
-    ("SA Kuala Lumpur", 2025): 10, ("K1 Cairo", 2025): 11, ("K1 Paris", 2025): 12,
-    ("SA Larnaca", 2025): 13, ("SA Salzbourg", 2025): 14, ("SA Tbilisi", 2025): 15,
-    ("K1 Istanbul", 2026): 16, ("SA Tbilisi", 2026): 17, ("K1 Roma", 2026): 18,
-    ("K1 Leshan", 2026): 19, ("SA ACoruna", 2026): 20, ("SA A Coruna", 2026): 20,
-    ("K1 Rabat", 2026): 21, ("SA Salzbourg", 2026): 22,
-}
-
-
-def get_compet_chrono_rank(competition: str, year=None) -> int:
-    """Return chronological rank of a competition (higher = more recent)."""
-    comp_str = str(competition).replace("_", " ") if competition else ""
-    year_int = None
-    try:
-        year_int = int(year) if year is not None else None
-    except (ValueError, TypeError):
-        pass
-    if year_int is not None:
-        rank = COMPET_CHRONO_ORDER.get((comp_str, year_int), 0)
-        if rank > 0:
-            return rank
-        year_ranks = [r for (_, y), r in COMPET_CHRONO_ORDER.items() if y == year_int]
-        if year_ranks:
-            return max(year_ranks)
-        max_known_rank = max(COMPET_CHRONO_ORDER.values()) if COMPET_CHRONO_ORDER else 0
-        max_known_year = max(y for (_, y) in COMPET_CHRONO_ORDER.keys()) if COMPET_CHRONO_ORDER else 2024
-        return max_known_rank + (year_int - max_known_year) * 7
-    return 0
+from constants.competitions import (  # noqa: E402
+    COMPET_CHRONO_ORDER,  # noqa: F401  (re-exported)
+    PANEL_GROUPS,
+    TOUR_RANK,
+    get_compet_chrono_rank,
+    is_championship,
+    max_flags,
+    panel_group,
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -168,7 +146,8 @@ def pair_matches(df: pd.DataFrame) -> pd.DataFrame:
         lambda r: get_compet_chrono_rank(str(r["Competition"]).replace("_", " "), r["Year"]),
         axis=1
     )
-    matches = matches.sort_values("chrono_rank").reset_index(drop=True)
+    # Stable sort: keeps file order (pools → finals) inside a competition
+    matches = matches.sort_values("chrono_rank", kind="mergesort").reset_index(drop=True)
 
     return matches
 
@@ -198,19 +177,13 @@ def engineer_features(matches: pd.DataFrame) -> pd.DataFrame:
     df["Same_Continent"] = (df["A_Continent"] == df["B_Continent"]).astype(int)
     df["Same_Style"] = (df["A_Style"] == df["B_Style"]).astype(int)
     df["Is_K1"] = (df["Type_Compet"] == "K1").astype(int)
+    df["Is_Champ"] = df["Type_Compet"].map(is_championship).astype(int)
     df["Is_Male"] = (df["Sexe"] == "M").astype(int)
-    df["Max_Flags"] = df["Is_K1"].map({1: 7, 0: 5})
+    df["Max_Flags"] = df["Type_Compet"].map(max_flags)
+    df["Panel"] = df["Type_Compet"].map(panel_group)
 
     # Tour rank (ordinal)
-    tour_order = {
-        "Pool_1": 1, "Pool_2": 2, "Pool_3": 3,
-        "T1": 1, "T2": 2, "T3": 3,
-        "PW1": 4, "PW2": 5, "PW3": 6,
-        "RP1": 4, "RP2": 5, "RP3": 6, "RP4": 7,
-        "R1": 7, "R2": 8,
-        "Bronze": 9, "Final": 10,
-    }
-    df["Tour_Rank"] = df["N_Tour"].map(tour_order).fillna(5) / 10.0
+    df["Tour_Rank"] = df["N_Tour"].map(TOUR_RANK).fillna(5) / 10.0
 
     # Is_Home : A joue dans son continent
     df["Is_Home_A"] = (df["A_Continent"].astype(str) == df["A_Region"].astype(str)).astype(int)
@@ -317,11 +290,11 @@ def engineer_features(matches: pd.DataFrame) -> pd.DataFrame:
         feats["A_Kata_Diversity"].append(len(a_katas) / max(a_stats[1], 1))
         feats["B_Kata_Diversity"].append(len(b_katas) / max(b_stats[1], 1))
 
-        # Flag mean (historique drapeaux)
+        # Flag mean (historique drapeaux, en part du jury : 5 ou 7 juges)
         a_flags = athlete_flags.get(a, [])
         b_flags = athlete_flags.get(b, [])
-        feats["A_Flag_Mean"].append(np.mean(a_flags) if a_flags else 2.5)
-        feats["B_Flag_Mean"].append(np.mean(b_flags) if b_flags else 2.5)
+        feats["A_Flag_Mean"].append(np.mean(a_flags) if a_flags else 0.5)
+        feats["B_Flag_Mean"].append(np.mean(b_flags) if b_flags else 0.5)
 
         # Kata global WR (popularité/force du kata globalement)
         ka_stats = kata_wins.get(a_kata, [0, 0])
@@ -382,15 +355,15 @@ def engineer_features(matches: pd.DataFrame) -> pd.DataFrame:
                 athlete_kata_notes[(b, b_kata)] = []
             athlete_kata_notes[(b, b_kata)].append(row["B_Note"])
 
-        # Flags
+        # Flags (normalisés par la taille du jury)
         if not np.isnan(row.get("A_Drapeau", np.nan)):
             if a not in athlete_flags:
                 athlete_flags[a] = []
-            athlete_flags[a].append(row["A_Drapeau"])
+            athlete_flags[a].append(row["A_Drapeau"] / row["Max_Flags"])
         if not np.isnan(row.get("B_Drapeau", np.nan)):
             if b not in athlete_flags:
                 athlete_flags[b] = []
-            athlete_flags[b].append(row["B_Drapeau"])
+            athlete_flags[b].append(row["B_Drapeau"] / row["Max_Flags"])
 
         # Kata diversity
         if a not in athlete_katas_used:
@@ -550,7 +523,7 @@ FEATURE_COLS = [
     # Head-to-head
     "A_H2H_Rate",
     # Contexte
-    "Diff_Age", "Tour_Rank", "Is_K1", "Is_Male",
+    "Diff_Age", "Tour_Rank", "Is_K1", "Is_Champ", "Is_Male",
     "Same_Nation", "Same_Continent", "Same_Style",
     "Home_Advantage",
     # Régularité
@@ -564,7 +537,7 @@ FEATURE_COLS = [
     "Ranking_x_Tour", "Winrate_x_Tour", "Form_x_Tour",
 ]
 
-# Features pour modèles séparés (sans Is_K1 car implicite)
+# Features pour modèles séparés par jury (Is_K1 redondant avec Is_Champ dans un groupe)
 FEATURE_COLS_SPLIT = [c for c in FEATURE_COLS if c != "Is_K1"]
 
 
@@ -577,11 +550,12 @@ def get_model_data(split_by_type: bool = True):
     Pipeline complète.
     
     Args:
-        split_by_type: si True, retourne des données séparées K1 et SA
-    
+        split_by_type: si True, retourne des données séparées par jury
+            ("J7" = K1, EKF, AKF, UFAK ; "J5" = SA, PKF)
+
     Returns:
         Si split_by_type=True:
-            dict avec clés "K1" et "SA", chacune contenant (train_X, train_y, test_X, test_y)
+            dict avec clés "J7" et "J5", chacune contenant (train_X, train_y, test_X, test_y)
         Si split_by_type=False:
             (train_X, train_y, test_X, test_y, full_df)
     """
@@ -602,8 +576,8 @@ def get_model_data(split_by_type: bool = True):
 
     if split_by_type:
         results = {}
-        for type_name in ["K1", "SA"]:
-            subset = with_target[with_target["Type_Compet"] == type_name].copy()
+        for type_name in PANEL_GROUPS:
+            subset = with_target[with_target["Panel"] == type_name].copy()
             if len(subset) < 10:
                 print(f"   ⚠️  {type_name}: seulement {len(subset)} matchs, skip")
                 continue
@@ -615,7 +589,8 @@ def get_model_data(split_by_type: bool = True):
             train_y = train["Target"].values.astype(int)
             test_y = test["Target"].values.astype(int)
 
-            print(f"   {type_name}: Train={len(train)} | Test={len(test)}")
+            types_in = ", ".join(sorted(subset["Type_Compet"].astype(str).unique()))
+            print(f"   {type_name} ({types_in}): Train={len(train)} | Test={len(test)}")
             results[type_name] = {
                 "train_X": train_X, "train_y": train_y,
                 "test_X": test_X, "test_y": test_y,
@@ -638,7 +613,7 @@ def get_model_data(split_by_type: bool = True):
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    # Test en mode séparé K1/SA
+    # Test en mode séparé par jury (J7 / J5)
     data = get_model_data(split_by_type=True)
 
     print("\n" + "=" * 60)

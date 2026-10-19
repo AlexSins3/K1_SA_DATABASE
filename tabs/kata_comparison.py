@@ -7,7 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from constants.competitions import COMPET_TYPES
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.display import fmt_tour
 from utils.lang import t
 
@@ -17,7 +18,7 @@ _TOUR_ORDER = [
     "Pool_1", "Pool_2", "Pool_3",
     "PW1", "PW2", "PW3",
     "RP1", "RP2", "RP3", "RP4",
-    "R1", "R2",
+    "R1", "R2", "SM",
     "Bronze", "Final",
 ]
 
@@ -50,11 +51,8 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
 
         # Type compétition
-        type_opts = [t("Tous"), "K1", "SA"]
-        sel_type = st.radio(t("Type compétition"), type_opts, key="kcomp_type")
-        d = df.copy()
-        if sel_type != t("Tous"):
-            d = d[d["Type_Compet"] == sel_type]
+        scope = type_compet_filter(df, "kcomp", label="Type compétition")
+        d = scope.data
 
         # Sexe
         sexes = sorted(d["Sexe"].dropna().unique().tolist())
@@ -153,8 +151,8 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
             Passages=("Win", "count"),
         ).reset_index()
         tour_stats["Win_Rate"] = (tour_stats["Win_Rate"] * 100).round(1)
-        tour_stats["Tour_Display"] = tour_stats["N_Tour"].apply(fmt_tour)
-        tour_order_display = [fmt_tour(t_val) for t_val in tours_present]
+        tour_stats["Tour_Display"] = tour_stats["N_Tour"].apply(lambda v: fmt_tour(v, scope.single_type))
+        tour_order_display = [fmt_tour(t_val, scope.single_type) for t_val in tours_present]
 
         fig_tour = px.bar(
             tour_stats, x="Tour_Display", y="Win_Rate", color="Kata",
@@ -176,7 +174,7 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
             _interp_parts = []
             for _, r in best_by_tour.iterrows():
                 if r["Passages"] >= 3:
-                    _interp_parts.append(f"**{fmt_tour(r['N_Tour'])}** → {r['Kata']} ({r['Win_Rate']:.0f}%)")
+                    _interp_parts.append(f"**{fmt_tour(r['N_Tour'], scope.single_type)}** → {r['Kata']} ({r['Win_Rate']:.0f}%)")
             if _interp_parts:
                 st.markdown(f"📊 **{t('Meilleur kata par tour')}** : " + " | ".join(_interp_parts[:6]))
 
@@ -205,7 +203,7 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
             # Index séquentiel (espacement uniforme) pour tous les tours présents
             all_tours_in_data = sorted(note_tour["N_Tour"].unique(), key=_tour_rank)
             tour_to_pos = {tour: i for i, tour in enumerate(all_tours_in_data)}
-            tour_labels = [fmt_tour(t_val) for t_val in all_tours_in_data]
+            tour_labels = [fmt_tour(t_val, scope.single_type) for t_val in all_tours_in_data]
 
             fig_note_tour = go.Figure()
             for kata in sel_katas:
@@ -214,7 +212,7 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
                     # Construire x/y et trier par position (bypass pandas sort)
                     x_pos = df_k["N_Tour"].map(tour_to_pos).tolist()
                     y_vals = df_k["Note"].tolist()
-                    labels = [fmt_tour(t) for t in df_k["N_Tour"].tolist()]
+                    labels = [fmt_tour(t, scope.single_type) for t in df_k["N_Tour"].tolist()]
                     sorted_data = sorted(zip(x_pos, y_vals, labels), key=lambda p: p[0])
                     x_sorted = [p[0] for p in sorted_data]
                     y_sorted = [p[1] for p in sorted_data]
@@ -296,9 +294,9 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
         # ═══════════════════════════════════════════════════════════════
         # Win rate par type de compétition (si filtre "Tous")
         # ═══════════════════════════════════════════════════════════════
-        if sel_type == t("Tous") and sub["Type_Compet"].nunique() > 1:
+        if sub["Type_Compet"].nunique() > 1:
             st.markdown("---")
-            st.subheader(t("Win rate par circuit (K1 vs SA)"))
+            st.subheader(t("Win rate par type de compétition"))
 
             wr_circuit = sub.groupby(["Kata", "Type_Compet"], observed=True).agg(
                 Win_Rate=("Win", "mean"),
@@ -310,9 +308,12 @@ def show_kata_comparison_tab(data: pd.DataFrame) -> None:
                 wr_circuit, x="Kata", y="Win_Rate", color="Type_Compet",
                 barmode="group", text="Win_Rate",
                 hover_data=["Passages"],
-                title=t("Win rate K1 vs SA"),
-                labels={"Win_Rate": "Win rate (%)", "Kata": t("Kata"), "Type_Compet": "Circuit"},
-                category_orders={"Kata": sel_katas},
+                title=t("Win rate par type de compétition"),
+                labels={"Win_Rate": "Win rate (%)", "Kata": t("Kata"), "Type_Compet": t("Compétition")},
+                category_orders={
+                    "Kata": sel_katas,
+                    "Type_Compet": [c for c in COMPET_TYPES if c in set(wr_circuit["Type_Compet"].astype(str))],
+                },
             )
             fig_circuit.update_traces(texttemplate="%{text:.0f}%", textposition="outside")
             fig_circuit.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.5)

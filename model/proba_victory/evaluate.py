@@ -1,7 +1,8 @@
 """
-Évaluation comparative V2 — Modèles séparés K1 / SA.
-=====================================================
-Compare Ordinal vs LightGBM pour chaque format de compétition.
+Évaluation comparative V2 — Modèles séparés par jury (J7 / J5).
+================================================================
+Compare Ordinal vs LightGBM pour chaque jury :
+J7 = 7 juges (K1, EKF, AKF, UFAK) ; J5 = 5 juges (SA, PKF).
 """
 
 import sys
@@ -16,7 +17,7 @@ import seaborn as sns
 from sklearn.metrics import accuracy_score, mean_absolute_error, confusion_matrix
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prepare_data import get_model_data, FEATURE_COLS_SPLIT
+from prepare_data import get_model_data, FEATURE_COLS_SPLIT, PANEL_GROUPS
 
 OUTPUT_DIR = Path(__file__).parent / "results"
 FIGURES_DIR = OUTPUT_DIR / "figures"
@@ -53,7 +54,7 @@ def compare_models():
     """Comparaison complète des modèles."""
 
     print("=" * 70)
-    print("COMPARAISON V2 — MODÈLES SÉPARÉS K1 / SA")
+    print("COMPARAISON V2 — MODÈLES SÉPARÉS PAR JURY (J7 / J5)")
     print("=" * 70)
 
     results = load_results()
@@ -61,8 +62,8 @@ def compare_models():
         print("❌ Aucun résultat. Lancez d'abord train_ordinal.py et train_lgbm.py")
         return
 
-    for type_name in ["K1", "SA"]:
-        max_f = 7 if type_name == "K1" else 5
+    for type_name in PANEL_GROUPS:
+        max_f = PANEL_GROUPS[type_name]["judges"]
         print(f"\n{'━' * 60}")
         print(f"  {type_name} (drapeaux: 0..{max_f})")
         print(f"{'━' * 60}")
@@ -106,7 +107,7 @@ def generate_plots():
 
     for type_name, d in data.items():
         test_X, test_y = d["test_X"], d["test_y"]
-        max_f = 7 if type_name == "K1" else 5
+        max_f = PANEL_GROUPS[type_name]["judges"]
 
         predictions = {}
 
@@ -188,7 +189,7 @@ def print_examples():
     for type_name, d in data.items():
         test_X, test_y = d["test_X"], d["test_y"]
         test_df = d["test_df"]
-        max_f = 7 if type_name == "K1" else 5
+        max_f = PANEL_GROUPS[type_name]["judges"]
 
         print(f"\n{'─' * 50}")
         print(f"  {type_name} (max {max_f} drapeaux)")

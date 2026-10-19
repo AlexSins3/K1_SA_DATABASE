@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.interpretations import show_tab_help
 from utils.display import fmt_col, format_display_df
 from utils.lang import t
@@ -28,16 +28,7 @@ def show_dataset_tab(data: pd.DataFrame) -> None:
         st.markdown(t("### 🎛️ Filtres"))
 
         # ---- Type de compétition ----
-        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-        selected_type = st.radio(
-            t("Type de compétition"),
-            type_compet_options,
-            key="dataset_type_compet",
-        )
-        if selected_type == "Premier League (K1)":
-            df = df[df["Type_Compet"] == "K1"]
-        elif selected_type == "Series A (SA)":
-            df = df[df["Type_Compet"] == "SA"]
+        df = type_compet_filter(df, "dataset").data
 
         # ---- Année ----
         if "Year" in df.columns:

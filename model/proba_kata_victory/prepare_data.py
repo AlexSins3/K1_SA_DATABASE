@@ -26,24 +26,15 @@ DATA_PATH = PROJECT_ROOT / "data" / "Database_K1_SA.csv"
 OUTPUT_DIR = Path(__file__).parent / "results"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-TOUR_ORDER = {
-    "Pool_1": 1, "Pool_2": 2, "Pool_3": 3, "Pool_4": 4,
-    "T1": 1, "T2": 2, "T3": 3,
-    "PW1": 4, "PW2": 5, "PW3": 6,
-    "RP1": 4, "RP2": 5, "RP3": 6, "RP4": 7,
-    "R1": 7, "R2": 8,
-    "Bronze": 9, "Final": 10,
-}
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-# Compétitions en ordre chronologique (2024-2026)
-COMPET_CHRONO = {
-    "K1 Istanbul": 1, "SA Pamplona": 2, "K1 Cairo": 3, "SA Porec": 4,
-    "K1 Shanghai": 5, "SA Kocaeli": 6, "K1 Rabat": 7, "SA Rabat": 8,
-    "K1 Budapest": 9, "SA Budapest": 10, "K1 Konya": 11,
-    "K1_Istanbul": 1, "SA_Pamplona": 2, "K1_Cairo": 3, "SA_Porec": 4,
-    "K1_Shanghai": 5, "SA_Kocaeli": 6, "K1_Rabat": 7, "SA_Rabat": 8,
-    "K1_Budapest": 9, "SA_Budapest": 10, "K1_Konya": 11,
-}
+from constants.competitions import (  # noqa: E402
+    TOUR_RANK as TOUR_ORDER,
+    get_compet_chrono_rank,
+    is_championship,
+    max_flags,
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -62,10 +53,12 @@ def load_raw_data() -> pd.DataFrame:
 
 
 def pair_matches(df: pd.DataFrame) -> pd.DataFrame:
-    """Appaire les matchs (stride-2 + validation victoire)."""
-    d = df.sort_values(
-        ["Year", "Competition", "Type_Compet", "N_Tour"], kind="mergesort"
-    ).reset_index(drop=True)
+    """Appaire les matchs (stride-2 + validation victoire).
+
+    Le CSV stocke chaque match sur 2 lignes consécutives (R puis B), dans
+    l'ordre de la compétition : on apparie donc dans l'ordre du fichier.
+    """
+    d = df.reset_index(drop=True)
 
     pairs = []
     i = 0
@@ -136,10 +129,16 @@ def pair_matches(df: pd.DataFrame) -> pd.DataFrame:
         # Target
         "A_Win": red_win,
     })
+    matches["Max_Flags"] = matches["Type_Compet"].map(max_flags)
+    # Position in file order (pools → finals inside a competition)
+    matches["File_Order"] = np.arange(len(matches))
 
-    # Chrono rank
-    matches["chrono_rank"] = matches["Competition"].astype(str).map(COMPET_CHRONO).fillna(5)
-    matches = matches.sort_values("chrono_rank").reset_index(drop=True)
+    # Chrono rank (stable sort keeps file order inside a competition)
+    matches["chrono_rank"] = [
+        get_compet_chrono_rank(c, y) for c, y in zip(matches["Competition"], matches["Year"])
+    ]
+    matches = matches.sort_values(["chrono_rank", "File_Order"], kind="mergesort").reset_index(drop=True)
+    matches["Match_Id"] = np.arange(len(matches))
     return matches
 
 
@@ -159,6 +158,8 @@ def to_directed(matches: pd.DataFrame) -> pd.DataFrame:
         "N_Tour": matches["N_Tour"],
         "Sexe": matches["Sexe"],
         "chrono_rank": matches["chrono_rank"],
+        "Match_Id": matches["Match_Id"],
+        "Max_Flags": matches["Max_Flags"],
         "Nom": matches["A_Nom"],
         "Kata": matches["A_Kata"],
         "Style": matches["A_Style"],
@@ -188,6 +189,8 @@ def to_directed(matches: pd.DataFrame) -> pd.DataFrame:
         "N_Tour": matches["N_Tour"],
         "Sexe": matches["Sexe"],
         "chrono_rank": matches["chrono_rank"],
+        "Match_Id": matches["Match_Id"],
+        "Max_Flags": matches["Max_Flags"],
         "Nom": matches["B_Nom"],
         "Kata": matches["B_Kata"],
         "Style": matches["B_Style"],
@@ -211,7 +214,10 @@ def to_directed(matches: pd.DataFrame) -> pd.DataFrame:
     })
 
     directed = pd.concat([rows_a, rows_b], ignore_index=True)
-    directed = directed.sort_values("chrono_rank").reset_index(drop=True)
+    # Both perspectives of a match are adjacent (red first), matches in chronological order
+    directed = directed.sort_values(
+        ["Match_Id", "Is_Red"], ascending=[True, False], kind="mergesort"
+    ).reset_index(drop=True)
     return directed
 
 
@@ -280,6 +286,7 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
         with open(transfer_model_path, "rb") as f:
             transfer_data = pickle.load(f)
         transfer_model = transfer_data["model"]
+        transfer_scaler = transfer_data.get("scaler")
         transfer_features = transfer_data["features"]
 
     # Global note mean (computed first)
@@ -294,6 +301,13 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
             style_wr[str(style)] = float(s_data["Win"].mean())
         else:
             style_wr[str(style)] = 0.5
+
+    _update_state = _make_state_updater((
+        athlete_wins, athlete_notes, athlete_recent, athlete_recent_5, athlete_kata_wins,
+        athlete_kata_notes, h2h_record, kata_wins, kata_tour_wins, athlete_katas_used,
+        athlete_flags, athlete_streak, opp_kata_losses,
+    ))
+    pending = []
 
     for idx in range(n):
         row = df.iloc[idx]
@@ -411,11 +425,11 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
         # B seen kata
         feats["B_Seen_Kata"][idx] = 1.0 if opp_kata_losses.get((opp, kata), [0, 0])[1] >= 2 else 0.0
 
-        # Flag WR diff
+        # Flag share diff (flags / judges: 5 for SA & PKF, 7 for K1, EKF, AKF, UFAK)
         a_flags_list = athlete_flags.get(nom, [])
         b_flags_list = athlete_flags.get(opp, [])
-        a_flag_wr = np.mean(a_flags_list) / 7.0 if a_flags_list else 0.5
-        b_flag_wr = np.mean(b_flags_list) / 7.0 if b_flags_list else 0.5
+        a_flag_wr = np.mean(a_flags_list) if a_flags_list else 0.5
+        b_flag_wr = np.mean(b_flags_list) if b_flags_list else 0.5
         feats["Flag_WR_Diff"][idx] = a_flag_wr - b_flag_wr
 
         # Win streak
@@ -455,7 +469,9 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
                 "Ranking_x_Tour": log_rank_ratio * tour_rank,
                 "Ranking_x_IsMale": log_rank_ratio * is_male,
             }
-            tf_X = pd.DataFrame([tf_dict])[transfer_features]
+            tf_X = pd.DataFrame([tf_dict])[transfer_features].astype(float)
+            if transfer_scaler is not None:
+                tf_X = transfer_scaler.transform(tf_X)
             feats["Transfer_Score"][idx] = float(transfer_model.predict(tf_X)[0])
 
         # A Kata consistency (std of notes with this kata)
@@ -468,7 +484,35 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
         opp_style = str(row["Opp_Style"])
         feats["Opp_Style_WR"][idx] = style_wr.get(opp_style, 0.5) - 0.5
 
-        # ── UPDATE STATE (after computing features) ──
+        # ── UPDATE STATE once both perspectives of the match are computed ──
+        # (otherwise B's row would see the result of the match it predicts)
+        pending.append(row)
+        if idx + 1 >= n or df["Match_Id"].iat[idx + 1] != row["Match_Id"]:
+            for r in pending:
+                _update_state(r)
+            pending.clear()
+
+    # Assign features to dataframe
+    for col, values in feats.items():
+        df[col] = values
+
+    return _add_static_features(df, feats)
+
+
+def _make_state_updater(state):
+    """Return the function that adds one directed row to the cumulative state."""
+    (athlete_wins, athlete_notes, athlete_recent, athlete_recent_5, athlete_kata_wins,
+     athlete_kata_notes, h2h_record, kata_wins, kata_tour_wins, athlete_katas_used,
+     athlete_flags, athlete_streak, opp_kata_losses) = state
+
+    def _update_state(row):
+        nom = str(row["Nom"])
+        opp = str(row["Opponent"])
+        kata = str(row["Kata"])
+        tour = str(row["N_Tour"])
+        win = int(row["Win"])
+        key = frozenset([nom, opp])
+
         # Wins
         if nom not in athlete_wins:
             athlete_wins[nom] = [0, 0]
@@ -522,12 +566,12 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
         kata_tour_wins[(kata, tour)][1] += 1
         kata_tour_wins[(kata, tour)][0] += win
 
-        # Flags
+        # Flags (share of the judging panel)
         drapeau = row["Drapeau"]
         if pd.notna(drapeau):
             if nom not in athlete_flags:
                 athlete_flags[nom] = []
-            athlete_flags[nom].append(float(drapeau))
+            athlete_flags[nom].append(float(drapeau) / float(row["Max_Flags"]))
 
         # Win streak
         if nom not in athlete_streak:
@@ -544,14 +588,15 @@ def engineer_features(directed: pd.DataFrame) -> pd.DataFrame:
         if win:  # A won → B lost against this kata
             opp_kata_losses[(opp, kata)][0] += 1
 
-    # Assign features to dataframe
-    for col, values in feats.items():
-        df[col] = values
+    return _update_state
 
-    # Static features
+
+def _add_static_features(df: pd.DataFrame, feats: dict) -> pd.DataFrame:
+    """Static (non-cumulative) features and interactions."""
     df["Same_Nation"] = (df["Nation"].astype(str) == df["Opp_Nation"].astype(str)).astype(int)
     df["Same_Style"] = (df["Style"].astype(str) == df["Opp_Style"].astype(str)).astype(int)
     df["Is_K1"] = (df["Type_Compet"].astype(str) == "K1").astype(int)
+    df["Is_Champ"] = df["Type_Compet"].astype(str).map(is_championship).astype(int)
     df["Is_Male"] = (df["Sexe"].astype(str) == "M").astype(int)
     df["Tour_Rank"] = df["N_Tour"].astype(str).map(lambda t: TOUR_ORDER.get(t, 5) / 10.0)
     df["Is_Home"] = (df["Continent"].astype(str) == df["Region"].astype(str)).astype(int)
@@ -581,7 +626,7 @@ ALL_FEATURES = [
     # Kata context
     "Kata_Tour_C", "Kata_Effect",
     # Match context
-    "Same_Nation", "Same_Style", "Is_K1", "Is_Male", "Is_Red",
+    "Same_Nation", "Same_Style", "Is_K1", "Is_Champ", "Is_Male", "Is_Red",
     "Is_Home", "Tour_Rank",
     # Transfer
     "Transfer_Score",
@@ -599,9 +644,13 @@ FEATURES_NO_TRANSFER = [f for f in ALL_FEATURES if f != "Transfer_Score"]
 # ══════════════════════════════════════════════════════════════════════════════
 
 def split_chronological(df: pd.DataFrame, test_ratio: float = 0.2):
-    """Split chronologique (les matchs les plus récents en test)."""
-    df = df.sort_values("chrono_rank").reset_index(drop=True)
+    """Split chronologique (les matchs les plus récents en test).
+
+    Les 2 lignes dirigées d'un même match restent du même côté du split.
+    """
+    df = df.sort_values(["chrono_rank", "Match_Id"], kind="mergesort").reset_index(drop=True)
     split_idx = int(len(df) * (1 - test_ratio))
+    split_idx -= split_idx % 2
     train = df.iloc[:split_idx].copy()
     test = df.iloc[split_idx:].copy()
     return train, test

@@ -25,7 +25,7 @@ from tabs.tendances import show_tendances_tab
 # Configuration Streamlit
 # =========================
 st.set_page_config(
-    page_title="Analyse Katas K1 / SA",
+    page_title="Analyse Katas K1 / SA / Championnats",
     layout="wide",
 )
 
@@ -90,7 +90,7 @@ def main():
     # ── Language selector (top-right) ──
     render_language_selector()
 
-    st.title(t("Suivi & Analyse des Katas – Premier League (K1) & Series A (SA)"))
+    st.title(t("Suivi & Analyse des Katas – Premier League (K1), Series A (SA) & Championnats continentaux"))
 
     # Chargement des données
     if not DATA_PATH.exists():

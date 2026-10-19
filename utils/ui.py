@@ -1,10 +1,13 @@
 """Shared Streamlit UI components (CSS, filter panels, footer)."""
 
 import html as html_lib
+from dataclasses import dataclass
 
+import pandas as pd
 import streamlit as st
 
-from utils.lang import t
+from constants.competitions import CHAMPIONSHIP_TYPES, compet_type_label
+from utils.lang import t, get_lang
 
 FILTER_PANEL_CSS = """
 <style>
@@ -36,19 +39,54 @@ def filter_panel_close():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def type_compet_radio(data, key_prefix: str):
-    """Render a Type-compétition radio and return (label, filtered_df)."""
-    options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-    selected = st.radio(t("Type de compétition"), options, key=f"{key_prefix}_type_compet")
+@dataclass
+class CompetScope:
+    """Result of the competition-type filter."""
+    choice: str   # "ALL" | "K1" | "SA" | "CHAMP"
+    types: list   # Type_Compet codes kept
+    data: pd.DataFrame
 
-    if selected == "Premier League (K1)":
-        filtered = data[data["Type_Compet"] == "K1"].copy()
-    elif selected == "Series A (SA)":
-        filtered = data[data["Type_Compet"] == "SA"].copy()
+    @property
+    def single_type(self):
+        """The Type_Compet code when exactly one type is kept, else None."""
+        return self.types[0] if len(self.types) == 1 else None
+
+
+def compet_type_name(type_compet) -> str:
+    """Readable (translated) name of a Type_Compet code."""
+    return compet_type_label(type_compet, get_lang())
+
+
+def type_compet_filter(data: pd.DataFrame, key_prefix: str, label: str = "Type de compétition") -> CompetScope:
+    """Render the competition-type filter (Tous / K1 / SA / Championnats continentaux).
+
+    When "Championnats continentaux" is chosen, a multiselect lets the user
+    keep some of the championships present in the data (EKF, AKF, PKF, UFAK…).
+    """
+    present = [str(x) for x in data["Type_Compet"].dropna().unique()] if "Type_Compet" in data.columns else []
+    champs = [c for c in CHAMPIONSHIP_TYPES if c in present]
+
+    options = ["ALL", "K1", "SA"] + (["CHAMP"] if champs else [])
+    names = {
+        "ALL": t("Tous"),
+        "K1": "Premier League (K1)",
+        "SA": "Series A (SA)",
+        "CHAMP": t("Championnats continentaux"),
+    }
+    choice = st.radio(t(label), options, format_func=lambda o: names[o], key=f"{key_prefix}_type_compet")
+
+    if choice == "CHAMP":
+        types = st.multiselect(
+            t("Championnats"), champs, default=champs,
+            format_func=compet_type_name, key=f"{key_prefix}_champs",
+        ) or champs
+    elif choice in ("K1", "SA"):
+        types = [choice]
     else:
-        filtered = data.copy()
+        types = present
 
-    return selected, filtered
+    filtered = data[data["Type_Compet"].astype(str).isin(types)].copy() if choice != "ALL" else data.copy()
+    return CompetScope(choice=choice, types=types, data=filtered)
 
 
 def athlete_label_html(name: str) -> str:

@@ -11,22 +11,40 @@ from utils.lang import t
 # Tour display mapping
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Generic label of each N_Tour code (used when several formats are mixed).
 TOUR_DISPLAY = {
-    "T1": "1er tour Series A",
-    "T2": "2ème tour Series A",
-    "T3": "3ème tour Series A",
+    "T1": "1er tour",
+    "T2": "2ème tour",
+    "T3": "3ème tour",
     "Pool_1": "1er tour de poule K1",
     "Pool_2": "2ème tour de poule K1",
     "Pool_3": "3ème tour de poule K1",
-    "PW1": "8ème de finale Series A",
+    "PW1": "Finale de poule",
     "PW2": "Quart de finale Series A",
     "PW3": "Demi-finale Series A",
+    "SM": "Demi-finale",
     "R1": "Quart de finale K1",
     "R2": "Demi-finale K1",
+    "RP1": "1er tour de repêchage",
+    "RP2": "2ème tour de repêchage",
+    "RP3": "3ème tour de repêchage",
+    "RP4": "4ème tour de repêchage",
     "Bronze": "Match pour la médaille de bronze",
     "Final": "Finale",
     "Finale": "Finale",
 }
+
+# Format-specific stage name of a code, suffixed with the competition name
+# (e.g. PW1 = 8ème de finale in SA but Quart de finale in EKF).
+_TOUR_STAGE_BY_TYPE = {
+    "SA": {"T1": "1er tour", "T2": "2ème tour", "T3": "3ème tour", "PW1": "8ème de finale"},
+    "EKF": {"T1": "1er tour", "T2": "2ème tour", "T3": "3ème tour", "PW1": "Quart de finale", "SM": "Demi-finale"},
+    "WKF": {"T1": "1er tour", "T2": "2ème tour", "T3": "3ème tour", "PW1": "Quart de finale", "SM": "Demi-finale"},
+    "AKF": {"T1": "1er tour", "T2": "2ème tour", "T3": "Quart de finale", "SM": "Demi-finale"},
+    "PKF": {"T1": "1er tour", "T2": "2ème tour", "T3": "Quart de finale", "SM": "Demi-finale"},
+    "UFAK": {"T1": "1er tour", "T2": "2ème tour", "T3": "Quart de finale", "SM": "Demi-finale"},
+}
+_TYPE_SUFFIX = {"SA": "Series A"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -51,15 +69,22 @@ def fmt_athlete(name) -> str:
     return f"{prenom} {nom}"
 
 
-def fmt_tour(tour) -> str:
-    """Map tour code to readable label for display (translated)."""
+def fmt_tour(tour, type_compet=None) -> str:
+    """Map tour code to readable label for display (translated).
+
+    With *type_compet* (K1, SA, EKF, AKF, PKF, UFAK…) the label names the
+    actual stage of that format; without it a generic label is used.
+    """
     try:
         if tour is None or pd.isna(tour):
             return ""
     except (TypeError, ValueError):
         pass
-    label = TOUR_DISPLAY.get(str(tour).strip(), str(tour).replace("_", " "))
-    return t(label)
+    code = str(tour).strip()
+    stage = _TOUR_STAGE_BY_TYPE.get(str(type_compet), {}).get(code) if type_compet else None
+    if stage is not None:
+        return f"{t(stage)} {_TYPE_SUFFIX.get(str(type_compet), str(type_compet))}"
+    return t(TOUR_DISPLAY.get(code, code.replace("_", " ")))
 
 
 def fmt_underscore(text) -> str:

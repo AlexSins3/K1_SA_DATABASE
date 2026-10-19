@@ -1,4 +1,4 @@
-"""Tour mappings and classification helpers for K1 and SA competitions."""
+"""Tour mappings and classification helpers for K1, SA and championships (EKF, AKF, PKF, UFAK)."""
 
 import pandas as pd
 
@@ -58,6 +58,41 @@ SA_TOUR_ORDER = {
     "Finale": 12,
 }
 
+# ── Championnats (EKF, AKF, PKF, UFAK, WKF) ──────────────────────────────────
+# Tableaux nommés par profondeur (cf. data/conventions_database.json) :
+#   4 poules (EKF/WKF) : T1, T2, T3, PW1 (finale de poule = quart), SM (demi), Final
+#   2 poules (AKF/PKF) et 1 poule (UFAK) : T1, T2, T3 (= quart), SM (demi), Final
+
+_CHAMP_COMMON_LABEL = {
+    "T1": "1er Tour",
+    "T2": "2ème Tour",
+    "SM": "Demi finale",
+    "Final": "Finale",
+    "Finale": "Finale",
+    "RP1": "1er Tour repêchage",
+    "RP2": "2ème Tour repêchage",
+    "RP3": "3ème Tour repêchage",
+    "RP4": "4ème Tour repêchage",
+}
+
+CHAMP_4_POOLS_TOUR_LABEL = {**_CHAMP_COMMON_LABEL, "T3": "3ème Tour", "PW1": "Quart de finale"}
+CHAMP_2_POOLS_TOUR_LABEL = {**_CHAMP_COMMON_LABEL, "T3": "Quart de finale"}
+
+TOUR_LABEL_BY_TYPE = {
+    "K1": K1_TOUR_LABEL,
+    "SA": SA_TOUR_LABEL,
+    "EKF": CHAMP_4_POOLS_TOUR_LABEL,
+    "WKF": CHAMP_4_POOLS_TOUR_LABEL,
+    "AKF": CHAMP_2_POOLS_TOUR_LABEL,
+    "PKF": CHAMP_2_POOLS_TOUR_LABEL,
+    "UFAK": CHAMP_2_POOLS_TOUR_LABEL,
+}
+
+# Championships reuse the SA scale (it contains every label above).
+TOUR_ORDER_BY_TYPE = {
+    "K1": K1_TOUR_ORDER,
+}
+
 # ── Kiviat (radar charts) ────────────────────────────────────────────────────
 
 KIVIAT_TOUR_MAP = {
@@ -66,6 +101,7 @@ KIVIAT_TOUR_MAP = {
     "Pool_3": "Poule",
     "R1": "Quart de finale",
     "R2": "Demi finale",
+    "SM": "Demi finale",
     "Bronze": "Bronze / Place de 3",
     "Finale": "Finale",
     "Final": "Finale",
@@ -105,6 +141,7 @@ TOUR_TYPE_MAP = {
     "PW1": "Quart/Demi/Finale de poule",
     "PW2": "Quart/Demi/Finale de poule",
     "PW3": "Quart/Demi/Finale de poule",
+    "SM": "Quart/Demi/Finale de poule",
     "RP1": "Repêchage",
     "RP2": "Repêchage",
     "RP3": "Repêchage",
@@ -120,8 +157,8 @@ TOUR_TYPE_MAP = {
 
 # ── Helper functions ──────────────────────────────────────────────────────────
 
-def map_k1_tour(n_tour, victoire=None):
-    """Map raw N_Tour value to K1 tour label."""
+def map_tour_label(n_tour, type_compet, victoire=None):
+    """Map raw N_Tour value to the tour label of its competition format."""
     if pd.isna(n_tour):
         return None
     n_tour = str(n_tour)
@@ -129,19 +166,24 @@ def map_k1_tour(n_tour, victoire=None):
         if pd.notna(victoire) and bool(victoire):
             return "Bronze"
         return "Place de 3"
-    return K1_TOUR_LABEL.get(n_tour)
+    labels = TOUR_LABEL_BY_TYPE.get(str(type_compet), SA_TOUR_LABEL)
+    return labels.get(n_tour)
+
+
+def tour_level(tour_label, type_compet):
+    """Ordinal level of a tour label (higher = further in the competition)."""
+    order = TOUR_ORDER_BY_TYPE.get(str(type_compet), SA_TOUR_ORDER)
+    return order.get(tour_label)
+
+
+def map_k1_tour(n_tour, victoire=None):
+    """Map raw N_Tour value to K1 tour label."""
+    return map_tour_label(n_tour, "K1", victoire)
 
 
 def map_sa_tour(n_tour, victoire=None):
     """Map raw N_Tour value to SA tour label."""
-    if pd.isna(n_tour):
-        return None
-    n_tour = str(n_tour)
-    if n_tour == "Bronze":
-        if pd.notna(victoire) and bool(victoire):
-            return "Bronze"
-        return "Place de 3"
-    return SA_TOUR_LABEL.get(n_tour)
+    return map_tour_label(n_tour, "SA", victoire)
 
 
 def map_tour_for_kiviat(n_tour):

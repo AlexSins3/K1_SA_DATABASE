@@ -9,7 +9,7 @@ import streamlit as st
 import prince
 
 from constants.tours import classify_tour_type
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.data_helpers import normalize_victoire_category
 from utils.interpretations import show_tab_help, _color_badge
 from utils.lang import t, get_lang
@@ -46,14 +46,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
         st.markdown(t("### 🎯 Filtres ACM"))
 
         # ── Type de compétition ──
-        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-        selected_type_compet = st.radio(
-            t("Type de compétition"), type_compet_options, key="acm_type_compet",
-        )
-        if selected_type_compet == "Premier League (K1)":
-            data_acm_filtered = data_acm_filtered[data_acm_filtered["Type_Compet"] == "K1"]
-        elif selected_type_compet == "Series A (SA)":
-            data_acm_filtered = data_acm_filtered[data_acm_filtered["Type_Compet"] == "SA"]
+        data_acm_filtered = type_compet_filter(data_acm_filtered, "acm").data
 
         # ── Année(s) ──
         if "Year" in data_acm_filtered.columns:
@@ -77,6 +70,7 @@ def show_acm_tab(data: pd.DataFrame) -> None:
             t("Type(s) de Tour à inclure"),
             options=type_de_tour_modalities,
             default=type_de_tour_modalities,
+            format_func=t,
             key="acm_type_tour",
         )
         if not selected_types:

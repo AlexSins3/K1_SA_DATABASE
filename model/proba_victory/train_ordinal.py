@@ -1,12 +1,12 @@
 """
-Modèle 1 : Régression Logistique Ordinale — V2 (séparé K1/SA)
-===============================================================
+Modèle 1 : Régression Logistique Ordinale — V2 (séparé par jury)
+==================================================================
 Prédit le nombre de drapeaux de l'athlète A (variable ordinale).
 
 Avantages :
 - Interprétable (coefficients)
 - Respecte la nature ordonnée de la target
-- Modèles séparés K1 (0-7) et SA (0-5)
+- Modèles séparés 7 juges J7 (0-7 : K1, EKF, AKF, UFAK) et 5 juges J5 (0-5 : SA, PKF)
 """
 
 import sys
@@ -193,11 +193,11 @@ def train_single_model(train_X, train_y, test_X, test_y, type_name: str):
 
 
 def train_ordinal_model():
-    """Entraîne les modèles ordinaux séparés K1 et SA."""
+    """Entraîne les modèles ordinaux séparés par jury (J7 / J5)."""
 
     print("=" * 60)
     print("MODÈLE 1 : RÉGRESSION LOGISTIQUE ORDINALE — V2")
-    print("  (modèles séparés K1 / SA)")
+    print("  (modèles séparés 7 juges / 5 juges)")
     print("=" * 60)
 
     data = get_model_data(split_by_type=True)

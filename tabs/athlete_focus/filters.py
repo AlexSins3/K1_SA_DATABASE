@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.lang import t
 
 
@@ -15,7 +15,7 @@ from utils.lang import t
 class AthleteFilterState:
     """All state produced by the filter panel and consumed by charts / history."""
     full_data: pd.DataFrame
-    selected_type_compet: str
+    selected_types: list
     selected_sexe: str
     selected_athlete: str
     selected_compare_athlete: str
@@ -33,19 +33,9 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
     st.markdown(t("### 🎯 Filtres"))
 
     # ── Type de compétition ──
-    type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-    selected_type_compet = st.radio(
-        t("Type de compétition"),
-        type_compet_options,
-        key="athlete_type_compet",
-    )
-
-    if selected_type_compet == "Premier League (K1)":
-        data_athlete = df[df["Type_Compet"] == "K1"].copy()
-    elif selected_type_compet == "Series A (SA)":
-        data_athlete = df[df["Type_Compet"] == "SA"].copy()
-    else:
-        data_athlete = df.copy()
+    scope = type_compet_filter(df, "athlete")
+    selected_types = scope.types
+    data_athlete = scope.data
 
     # ── Sexe ──
     sexe_options = sorted(data_athlete["Sexe"].dropna().unique().tolist())
@@ -116,7 +106,7 @@ def render_filters(data: pd.DataFrame) -> AthleteFilterState | None:
 
     return AthleteFilterState(
         full_data=df,
-        selected_type_compet=selected_type_compet,
+        selected_types=selected_types,
         selected_sexe=selected_sexe,
         selected_athlete=selected_athlete,
         selected_compare_athlete=selected_compare_athlete,

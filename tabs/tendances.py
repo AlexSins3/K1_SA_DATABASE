@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.interpretations import show_tab_help, _color_badge
 from utils.display import format_display_df
 from utils.lang import t, get_lang
@@ -61,11 +61,7 @@ def show_tendances_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
         st.markdown(t("### 🎛️ Filtres"))
 
-        type_opts = [t("Tous"), "K1", "SA"]
-        sel_type = st.radio(t("Type compétition"), type_opts, key="tend_type")
-        d = df.copy()
-        if sel_type != t("Tous"):
-            d = d[d["Type_Compet"] == sel_type]
+        d = type_compet_filter(df, "tend", label="Type compétition").data
 
         sexes = sorted(d["Sexe"].dropna().unique().tolist())
         sel_sexe = st.selectbox(t("Sexe"), [t("Tous")] + sexes, key="tend_sexe")
@@ -125,9 +121,11 @@ def show_tendances_tab(data: pd.DataFrame) -> None:
             # Contexte important
             _ctx_k1 = t("En K1, la tête de série de chaque poule passe systématiquement en bleue. "
                         "En SA, seules 4 à 8 têtes de série sur 96-128 participants portent le bleu en 1er tour.")
+            _ctx_champ = t("Aux championnats continentaux (EKF, AKF, PKF, UFAK), les tableaux sont plus petits "
+                           "et les têtes de série plus nombreuses en proportion.")
             _ctx_biais = t("Ce biais de sélection peut expliquer une partie de l'avantage observé.")
             st.info(
-                f"⚠️ **{t('Contexte')}** : {_ctx_k1} {_ctx_biais}"
+                f"⚠️ **{t('Contexte')}** : {_ctx_k1} {_ctx_champ} {_ctx_biais}"
             )
 
             # Évolution par année
@@ -453,13 +451,14 @@ def show_tendances_tab(data: pd.DataFrame) -> None:
         st.subheader("🎯 " + t("Spécialiste vs Polyvalent : qui gagne ?"))
 
         # Filtre: uniquement athlètes ayant passé au moins 1 tour dans 2+ compétitions
-        # (exclut ceux éliminés systématiquement au 1er tour)
+        # (exclut ceux éliminés systématiquement à leur 1er match)
         d_qual = d.copy()
-        # Identifier les tours "avancés" (après T1/Pool_1)
-        _first_tours = {"T1", "Pool_1"}
-        d_qual["_is_advanced"] = ~d_qual["N_Tour"].astype(str).isin(_first_tours)
-        # Compter les compétitions où l'athlète a atteint un tour avancé
-        adv_compets = d_qual[d_qual["_is_advanced"]].groupby("Nom")["Competition"].nunique().reset_index()
+        d_qual["_compet"] = d_qual["Competition"].astype(str) + "_" + d_qual["Year"].astype(str)
+        # Tour "avancé" = l'athlète a disputé au moins 2 tours différents dans la compétition
+        # (indépendant du format : 1er tour T1 en SA, T2 en EKF, Pool_1 en K1…)
+        tours_per_compet = d_qual.groupby(["Nom", "_compet"], observed=True)["N_Tour"].nunique().reset_index()
+        adv = tours_per_compet[tours_per_compet["N_Tour"] >= 2]
+        adv_compets = adv.groupby("Nom", observed=True)["_compet"].nunique().reset_index()
         adv_compets.columns = ["Nom", "Compets_Avancees"]
         eligible_athletes = adv_compets[adv_compets["Compets_Avancees"] >= 2]["Nom"].tolist()
 

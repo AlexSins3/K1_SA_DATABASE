@@ -8,10 +8,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from constants.competitions import CHAMPIONSHIP_TYPES
 from constants.tours import (
-    K1_TOUR_ORDER, SA_TOUR_ORDER,
     KIVIAT_TOUR_ORDER,
-    map_k1_tour, map_sa_tour, map_tour_for_kiviat,
+    map_tour_label, tour_level, map_tour_for_kiviat,
 )
 from utils.ui import athlete_label_html
 from utils.data_helpers import build_compet_label, get_compet_chrono_rank
@@ -94,8 +94,9 @@ def render_athlete_info(state):
 # 2. Tour maximal atteint par compétition
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _compute_max_tour_by_compet(df_src, athlete_name, type_compet):
-    df_a = df_src[(df_src["Nom"] == athlete_name) & (df_src["Type_Compet"] == type_compet)].copy()
+def _compute_max_tour_by_compet(df_src, athlete_name, types):
+    """Max tour reached per competition, for the Type_Compet codes in *types*."""
+    df_a = df_src[(df_src["Nom"] == athlete_name) & (df_src["Type_Compet"].astype(str).isin(types))].copy()
     if df_a.empty:
         return pd.DataFrame(columns=["Competition_Label", "Tour_Label", "Level", "Athlète"])
 
@@ -104,12 +105,10 @@ def _compute_max_tour_by_compet(df_src, athlete_name, type_compet):
     )
     df_a["Year_numeric"] = pd.to_numeric(df_a.get("Year"), errors="coerce") if "Year" in df_a.columns else np.nan
 
-    if type_compet == "K1":
-        df_a["Tour_Label"] = df_a.apply(lambda r: map_k1_tour(r["N_Tour"], r.get("Victoire")), axis=1)
-        df_a["Level"] = df_a["Tour_Label"].map(K1_TOUR_ORDER)
-    else:
-        df_a["Tour_Label"] = df_a.apply(lambda r: map_sa_tour(r["N_Tour"], r.get("Victoire")), axis=1)
-        df_a["Level"] = df_a["Tour_Label"].map(SA_TOUR_ORDER)
+    df_a["Tour_Label"] = df_a.apply(
+        lambda r: map_tour_label(r["N_Tour"], r["Type_Compet"], r.get("Victoire")), axis=1,
+    )
+    df_a["Level"] = df_a.apply(lambda r: tour_level(r["Tour_Label"], r["Type_Compet"]), axis=1)
 
     df_a = df_a.dropna(subset=["Competition_Label", "Tour_Label", "Level"])
     if df_a.empty:
@@ -130,16 +129,19 @@ def _plot_max_tour(df_plot, title, key_suffix):
         ["Year_numeric", "Competition_Label"], na_position="first"
     )["Competition_Label"].unique()
 
+    df_plot = df_plot.copy()
+    df_plot["Tour_Label_Display"] = df_plot["Tour_Label"].apply(t)
+
     unique_levels = sorted(df_plot["Level"].unique())
     ticktexts = []
     for lvl in unique_levels:
-        labels = sorted(df_plot.loc[df_plot["Level"] == lvl, "Tour_Label"].unique())
+        labels = sorted(df_plot.loc[df_plot["Level"] == lvl, "Tour_Label_Display"].unique())
         ticktexts.append(" / ".join(labels))
 
     fig = px.bar(
         df_plot,
         x="Competition_Label", y="Level", color="Athlète",
-        barmode="group", text="Tour_Label",
+        barmode="group", text="Tour_Label_Display",
         labels={"Competition_Label": t("Compétition"), "Level": t("Tour maximal")},
         category_orders={"Competition_Label": list(cat_order)},
     )
@@ -153,16 +155,17 @@ def render_max_tour(state):
     col_left, col_sep, col_right = st.columns([1, 0.05, 1])
     s = state
     df = s.full_data
+    has_compare = s.compare_athlete_data is not None and not s.compare_athlete_data.empty
 
-    # K1
-    df_k1 = _compute_max_tour_by_compet(df, s.selected_athlete, "K1")
-    if s.compare_athlete_data is not None and not s.compare_athlete_data.empty:
-        df_k1 = pd.concat([df_k1, _compute_max_tour_by_compet(df, s.selected_compare_athlete, "K1")], ignore_index=True)
+    def _max_tour(types):
+        out = _compute_max_tour_by_compet(df, s.selected_athlete, types)
+        if has_compare:
+            out = pd.concat([out, _compute_max_tour_by_compet(df, s.selected_compare_athlete, types)], ignore_index=True)
+        return out
 
-    # SA
-    df_sa = _compute_max_tour_by_compet(df, s.selected_athlete, "SA")
-    if s.compare_athlete_data is not None and not s.compare_athlete_data.empty:
-        df_sa = pd.concat([df_sa, _compute_max_tour_by_compet(df, s.selected_compare_athlete, "SA")], ignore_index=True)
+    df_k1 = _max_tour(["K1"])
+    df_sa = _max_tour(["SA"])
+    df_champ = _max_tour(list(CHAMPIONSHIP_TYPES))
 
     with col_left:
         st.markdown("### Premier League (K1)")
@@ -174,6 +177,14 @@ def render_max_tour(state):
     with col_right:
         st.markdown("### Series A (SA)")
         _plot_max_tour(df_sa, "SA", f"max_tour_sa_{s.selected_sexe}_{s.selected_athlete}_{s.selected_compare_athlete}")
+
+    # Championnats continentaux (EKF, AKF, PKF, UFAK) — shown only if the athlete(s) took part
+    if not df_champ.empty:
+        st.markdown("### " + t("Championnats continentaux") + " (EKF, AKF, PKF, UFAK)")
+        _plot_max_tour(
+            df_champ, t("Championnats continentaux"),
+            f"max_tour_champ_{s.selected_sexe}_{s.selected_athlete}_{s.selected_compare_athlete}",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

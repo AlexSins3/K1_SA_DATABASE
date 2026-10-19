@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from utils.ui import filter_panel_open, filter_panel_close
+from utils.ui import filter_panel_open, filter_panel_close, type_compet_filter
 from utils.data_helpers import get_numeric_and_categorical_columns
 from utils.stats import (
     fmt_p,
@@ -47,17 +47,7 @@ def show_graphs_tab(data: pd.DataFrame) -> None:
         filter_panel_open()
         st.markdown(t("### 🎛️ Filtres"))
 
-        type_compet_options = [t("Tous"), "Premier League (K1)", "Series A (SA)"]
-        selected_type_compet = st.radio(
-            t("Type de compétition"), type_compet_options, key="graphs_type_compet",
-        )
-
-        if selected_type_compet == "Premier League (K1)":
-            data_compet = df[df["Type_Compet"] == "K1"].copy()
-        elif selected_type_compet == "Series A (SA)":
-            data_compet = df[df["Type_Compet"] == "SA"].copy()
-        else:
-            data_compet = df.copy()
+        data_compet = type_compet_filter(df, "graphs").data
 
         # Year filter
         if "Year" in data_compet.columns:

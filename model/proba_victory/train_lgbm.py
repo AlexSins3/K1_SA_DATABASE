@@ -1,12 +1,12 @@
 """
-Modèle 2 : LightGBM Multiclass + Optuna — V2 (séparé K1/SA)
-=============================================================
+Modèle 2 : LightGBM Multiclass + Optuna — V2 (séparé par jury)
+===============================================================
 Prédit le nombre de drapeaux de l'athlète A (classification multiclass).
 
 Avantages :
 - Capture les interactions non-linéaires
 - Gère nativement les valeurs manquantes
-- Modèles séparés K1 (0-7) et SA (0-5) optimisés indépendamment
+- Modèles séparés 7 juges J7 (0-7 : K1, EKF, AKF, UFAK) et 5 juges J5 (0-5 : SA, PKF)
 """
 
 import sys
@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prepare_data import get_model_data, FEATURE_COLS_SPLIT
+from prepare_data import get_model_data, FEATURE_COLS_SPLIT, PANEL_GROUPS
 
 
 OUTPUT_DIR = Path(__file__).parent / "results"
@@ -83,7 +83,7 @@ def objective(trial, train_X, train_y, num_classes):
 def train_single_lgbm(train_X, train_y, test_X, test_y, type_name: str, n_trials: int = 80):
     """Entraîne + optimise un LightGBM pour un type de compétition."""
 
-    max_flags = 7 if type_name == "K1" else 5
+    max_flags = PANEL_GROUPS[type_name]["judges"]
     num_classes = max_flags + 1
 
     print(f"\n{'═' * 50}")
@@ -158,11 +158,11 @@ def train_single_lgbm(train_X, train_y, test_X, test_y, type_name: str, n_trials
 
 
 def train_lgbm_model(n_trials: int = 80):
-    """Pipeline complète : optimise + entraîne LightGBM séparé K1/SA."""
+    """Pipeline complète : optimise + entraîne LightGBM séparé par jury (J7 / J5)."""
 
     print("=" * 60)
     print("MODÈLE 2 : LightGBM MULTICLASS + OPTUNA — V2")
-    print("  (modèles séparés K1 / SA)")
+    print("  (modèles séparés 7 juges / 5 juges)")
     print("=" * 60)
 
     data = get_model_data(split_by_type=True)
@@ -205,7 +205,7 @@ def train_lgbm_quick():
     data = get_model_data(split_by_type=True)
 
     for type_name, d in data.items():
-        max_flags = 7 if type_name == "K1" else 5
+        max_flags = PANEL_GROUPS[type_name]["judges"]
         num_classes = max_flags + 1
 
         model = lgb.LGBMClassifier(

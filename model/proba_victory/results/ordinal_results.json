@@ -1,18 +1,18 @@
 {
-  "K1": {
-    "accuracy": 0.4024390243902439,
-    "mae": 1.024390243902439,
-    "accuracy_pm1": 0.7073170731707317,
+  "J7": {
+    "accuracy": 0.3181818181818182,
+    "mae": 1.3363636363636364,
+    "accuracy_pm1": 0.6,
     "log_loss": null,
-    "best_alpha": 10.0,
-    "n_features": 10
+    "best_alpha": 2.0,
+    "n_features": 5
   },
-  "SA": {
-    "accuracy": 0.31446540880503143,
-    "mae": 1.1446540880503144,
-    "accuracy_pm1": 0.6918238993710691,
+  "J5": {
+    "accuracy": 0.2807017543859649,
+    "mae": 1.263157894736842,
+    "accuracy_pm1": 0.6491228070175439,
     "log_loss": null,
-    "best_alpha": 10.0,
+    "best_alpha": 2.0,
     "n_features": 5
   }
 }

@@ -18,10 +18,7 @@ def render_history(state):
 
     df_hist = s.full_data.copy()
 
-    if s.selected_type_compet == "Premier League (K1)":
-        df_hist = df_hist[df_hist["Type_Compet"] == "K1"]
-    elif s.selected_type_compet == "Series A (SA)":
-        df_hist = df_hist[df_hist["Type_Compet"] == "SA"]
+    df_hist = df_hist[df_hist["Type_Compet"].astype(str).isin(s.selected_types)]
 
     if s.selected_sexe and "Sexe" in df_hist.columns:
         df_hist = df_hist[df_hist["Sexe"] == s.selected_sexe]
@@ -90,7 +87,7 @@ def _render_single_history(df_hist, athlete_name):
                         opp_name = opp_row.get("Nom", t("Inconnu"))
 
                 record = {
-                    "Tour": fmt_tour(row.get("N_Tour")),
+                    "Tour": fmt_tour(row.get("N_Tour"), row.get("Type_Compet")),
                     "Kata": row.get("Kata"),
                     "vs.": opp_name,
                     "Victoire": victoire_to_str(row.get("Victoire")),
@@ -150,7 +147,7 @@ def _render_pair_history(df_hist, athlete_a, athlete_b):
                     self_row = r1 if r1.get("Nom") == athlete_a else r2
 
                     record = {
-                        "Tour": fmt_tour(self_row.get("N_Tour")),
+                        "Tour": fmt_tour(self_row.get("N_Tour"), self_row.get("Type_Compet")),
                         "Kata": self_row.get("Kata"),
                         "Ceinture": self_row.get("Ceinture"),
                         "Victoire": victoire_to_str(self_row.get("Victoire")),

@@ -1,0 +1,767 @@
+{
+  "version": "2026-10-19",
+  "fichier": {
+    "separateur": ";",
+    "fin_de_ligne": "CRLF",
+    "encodage": "ASCII (sans accents)",
+    "booleens": "VRAI / FAUX",
+    "nombres": "décimal avec .0 (Age, Ranking, Note, Drapeau)",
+    "colonnes": [
+      "Nom",
+      "Sexe",
+      "Age",
+      "Nation",
+      "Continent",
+      "Ranking",
+      "Kata",
+      "Style",
+      "Note",
+      "Drapeau",
+      "N_Tour",
+      "Competition",
+      "Region_monde",
+      "Ceinture",
+      "Victoire",
+      "Type_Compet",
+      "Year"
+    ]
+  },
+  "structure_lignes": {
+    "paire": "Chaque match = 2 lignes consécutives : Ceinture R (AKA) puis B (AO), une Victoire VRAI et une FAUX.",
+    "ordre_pyramide": "Poule par poule (T1 -> T2 -> T3 -> PW1), puis PW2, PW3, Bronze, Final, puis repêchage côté finaliste AKA puis côté finaliste AO (RP1 -> RP4).",
+    "ordre_K1": "Poules round-robin (Pool_1..Pool_3) par groupe, puis R1, R2, Bronze, Final."
+  },
+  "Competition": {
+    "format": "<Type>_<Ville>",
+    "villes": "Nom de ville en anglais/français usuel sans accent ni espace (ex. SA_ACoruna, SA_KualaLumpur, K1_Roma, EKF_Frankfurt)",
+    "Type_Compet": {
+      "K1": "Karate One Premier League (préfixe K1_)",
+      "SA": "Karate One Series A (préfixe SA_)",
+      "EKF": "Championnats d'Europe seniors EKF (préfixe EKF_)",
+      "WKF": "Championnats du monde seniors WKF (préfixe WKF_) – à utiliser pour les prochains ajouts",
+      "AKF": "Championnats d'Asie seniors AKF (préfixe AKF_)",
+      "PKF": "Championnats panaméricains seniors PKF (préfixe PKF_)",
+      "UFAK": "Championnats d'Afrique seniors UFAK (préfixe UFAK_)"
+    },
+    "Region_monde": [
+      "Est_Asia",
+      "Est_EUR",
+      "North_Africa",
+      "South_Am",
+      "South_EUR",
+      "West_EUR"
+    ],
+    "Region_monde_note": "Allemagne, Autriche, Espagne, France, Italie = West_EUR ; Grèce, Chypre = South_EUR ; Turquie, Géorgie = Est_EUR. ; Indonésie (Bali) = Est_Asia. ; Brésil (Rio) = South_Am. ; Algérie (Alger) = North_Africa."
+  },
+  "N_Tour": {
+    "principe": "Les tours d'un tableau à élimination directe sont nommés par leur profondeur, pas par leur numéro dans la page sportdata, pour être comparables d'une compétition à l'autre.",
+    "tours_de_poule": {
+      "PW1": "Finale de poule (dernier match de 'Main Tree Pool X')",
+      "T3": "Demi-finale de poule",
+      "T2": "Quart de finale de poule",
+      "T1": "1/8 de finale de poule (1er tour quand la poule a 16 places)"
+    },
+    "tours_de_poule_note": "Si la poule est plus petite, le premier tour joué n'est pas T1 : EKF Frankfurt F (poules de 8 + 1 match de barrage) -> barrage = T1, puis T2, T3, PW1. Les byes ne créent pas de ligne.",
+    "tableau_vainqueurs_de_poule": {
+      "PW2": "Quart de finale entre vainqueurs de poule (SA, 8 poules)",
+      "PW3": "Demi-finale en SA (Poolwinner Tree round 2)",
+      "SM": "Demi-finale (semi-final) des championnats EKF/WKF à 4 poules : premier tour du tableau des vainqueurs de poule",
+      "Final": "Finale"
+    },
+    "tableau_vainqueurs_note": "Avec 4 poules (EKF), les vainqueurs de poule (PW1) jouent directement les demi-finales, notées SM ; pas de PW2 ni de PW3.",
+    "repechage": {
+      "principe": "Nommé d'après le tour où le nouvel entrant a perdu contre le finaliste",
+      "RP1": "perdants du finaliste en T1 et T2",
+      "RP2": "+ perdant en T3",
+      "RP3": "+ perdant en PW1",
+      "RP4": "+ perdant en PW2",
+      "Bronze": "Dernier match de chaque repêchage = match pour la médaille de bronze (contre le perdant de la demi-finale)"
+    },
+    "K1": {
+      "Pool_1/Pool_2/Pool_3": "Matchs de poule round-robin (3 rencontres par athlète)",
+      "R1": "Quart (croisement des poules)",
+      "R2": "Demi",
+      "Bronze": "Match pour la 3e place",
+      "Final": "Finale"
+    },
+    "formats": {
+      "8_poules (SA)": "T1, T2, T3, PW1 (finale de poule), PW2 (quart), PW3 (demi), Final ; repêchage RP1..RP4, Bronze",
+      "4_poules (EKF)": "T1 (barrages éventuels), T2, T3, PW1 (finale de poule = quart), SM (demi), Final ; repêchage RP2, RP3, Bronze",
+      "2_poules (AKF, PKF)": "T1, T2, T3 (= quart), SM (finale de poule = demi : ses perdants vont au bronze), Final ; repêchage RP1/RP2, Bronze",
+      "1_poule (UFAK)": "Tableau unique nommé depuis la finale : Final, SM (4 athlètes), T3 (8), T2 (16), T1 (32, barrages) ; repêchage RP2, Bronze"
+    },
+    "SM_regle": "SM = demi-finale, c'est-à-dire le tour à 4 athlètes dont les perdants disputent le bronze, quel que soit son nom sur sportdata (Poolwinner Round 1 en EKF, finale de poule en AKF). Les SA gardent PW3."
+  },
+  "Drapeau": {
+    "definition": "Nombre de drapeaux (juges) obtenus par l'athlète sur le match",
+    "SA": "5 juges (somme par match = 5)",
+    "K1_2026": "7 juges (somme = 7)",
+    "EKF": "7 juges (somme = 7)",
+    "avant_2026": "Vide : ces compétitions sont notées (colonne Note)",
+    "AKF": "7 juges (somme = 7)",
+    "PKF": "5 juges (somme = 5)",
+    "UFAK": "7 juges (somme = 7) ; match à 6 drapeaux complété en ajoutant le drapeau manquant au vainqueur (Ishimwe 6-1)"
+  },
+  "Note": "Score numérique (ancien système de notation) ; vide quand la compétition est jugée aux drapeaux.",
+  "Victoire": {
+    "regle": "VRAI pour l'athlète ayant le plus de drapeaux (ou la meilleure note)",
+    "progression": "Si les drapeaux contredisent la progression, l'athlète présent au tour suivant est considéré vainqueur.",
+    "double_disqualification": "Les deux athlètes : Drapeau 0.0, Victoire FAUX (ex. SA Salzbourg 2026 M, poule 5 T1).",
+    "forfait_bye": "Aucune ligne : le qualifié apparaît directement au tour suivant.",
+    "finale_forfait": "Une finale perdue par forfait est saisie 7-0 (ou 5-0 selon le nombre de juges) avec un kata probable pour le forfait (AKF Bali 2026 M : Nishiyama 7 – Almosawi 0)."
+  },
+  "Nom": {
+    "format": "Nom_Prenom en Title Case, mots séparés par _, sans accent ni tiret (ex. Garcia_Lozano_Paola, Kirschnerova_Alice_Jana)",
+    "translitteration": "ü->u, ö->o, ø->o, æ->ae, ł->l, İ->I, ß->ss ; apostrophes et tirets -> _ ou supprimés (D ONOFRIO -> Donofrio)",
+    "regle": "Un athlète = un seul nom dans tout le fichier ; si la page donne une variante, on garde le nom déjà présent dans le CSV.",
+    "alias_valides": {
+      "Fabian_Csenge": "Fabian_Csenge_Zita",
+      "Elhabashi_Mahmoud1": "El_Habashi_Mahmoud",
+      "Becker_Sebastian": "Becker_Sebastian_Kawin",
+      "Gruitia_Matthew_B": "Gruitia_Matthew",
+      "Parra_Mario": "Parra_Ramirez_Mario",
+      "Martin_Diaz_Alba": "Martin_Alba",
+      "Gallo_Isidora": "Gallo_Araya_Isidora",
+      "Lueck_Aidan_Randall": "Luck_Aidan_Randall",
+      "Luck_Aidan": "Luck_Aidan_Randall",
+      "Ewald_Clara_Marie": "Ewald_Clara",
+      "Jurgensmann_Annika": "Juergensmann_Annika",
+      "Nilsson_Sara_Lonbæk": "Nilsson_Sara_Lonbaek",
+      "Rami_Fawzi_Abu_Al_Haija_Kareem": "Abu_Alhaija_Kareem",
+      "Henrique_Gabrielle": "Andrade_Henrique_Gabrielle",
+      "Henrique_Yasmin": "Andrade_Henrique_Yasmin",
+      "Garcia_Daniela": "Garcia_Bustamante_Daniela_Valentina",
+      "Castano_Leidy_Daniela": "Castano_Rojo_Leidy_Daniela",
+      "Cerros_Elena_Isabel": "Cerros_Martinez_Elena",
+      "Luengo_Delgado_Simon": "Luengo_Simon",
+      "Wong_Mariano": "Wong_Alfaro_Mariano",
+      "Morales_Barroeta_Jose_Daniel": "Morales_Daniel",
+      "Almarza_Rosa": "Almarza_Andrea",
+      "Benmakhlouf_Saber": "Benmekhlouf_Saber"
+    },
+    "ordre": "Toujours Nom_Prenom : si la page inverse (ANGELA JAZMIN AVILES ROCHA), on remet Aviles_Rocha_Angela_Jazmin",
+    "nouveaux_athletes": "Pour un athlète jamais vu, garder seulement Nom_Prenom : premier nom de famille + premier prénom (Aranda_Javes_Ingrid_Lizbeth -> Aranda_Ingrid) ; les particules restent dans le nom (De_Castro_Heriberto). Les athlètes déjà présents gardent leur nom existant."
+  },
+  "Nation": {
+    "regle": "Code pays utilisé par sportdata (codes WKF/CIO : BIH, SRB, SGP, ROU, NED, DEN, IRI, ISL, MAS, MDA, CHN = Chine, CHI = Chili...)",
+    "nouveau_pays": "Si le code n'existe pas encore dans le CSV, reprendre tel quel le code de la page.",
+    "neutres": {
+      "WKF-1": "Athlètes neutres (Russie)",
+      "WKF-2": "Athlètes neutres (Biélorussie)",
+      "EKF-1 / EKF-2": "Mêmes groupes aux championnats EKF -> enregistrés en WKF-1 / WKF-2 pour garder une seule nationalité par athlète"
+    },
+    "changement": "Changement de nationalité confirmé -> toutes les lignes de l'athlète passent à la nouvelle nationalité (Locoge_Maelle GER, Mathes_Mika GER, Stelcl_Adam AUT, Abu_Alhaija_Kareem UAE).",
+    "nouveaux_codes": {
+      "THA": "Thaïlande (Est_Asia)",
+      "CAM": "Cambodge (Est_Asia)",
+      "NEP": "Népal (Est_Asia, comme IND/SRI)",
+      "UAE": "Émirats arabes unis (West_Asia)",
+      "BOL": "Bolivie (South_Am)",
+      "PAR": "Paraguay (South_Am)",
+      "TUN": "Tunisie (North_Africa)",
+      "LBA": "Libye (North_Africa)",
+      "BOT": "Botswana (South_Africa)",
+      "ZAM": "Zambie (South_Africa)",
+      "MRI": "Maurice (South_Africa)",
+      "BDI": "Burundi (Africa)",
+      "KEN": "Kenya (Africa)",
+      "ETH": "Éthiopie (Africa)",
+      "CMR": "Cameroun (Africa)",
+      "BUR": "Burkina Faso (Africa)",
+      "COD": "RD Congo (Africa)",
+      "GAB": "Gabon (Africa)",
+      "RWA": "Rwanda (Africa)"
+    }
+  },
+  "Continent": {
+    "valeurs": [
+      "Africa",
+      "Est_Asia",
+      "Europe",
+      "North_Africa",
+      "North_Am",
+      "Oceania",
+      "South_Africa",
+      "South_Am",
+      "WKF2",
+      "West_Asia"
+    ],
+    "regle": "Un code pays = un seul continent. Neutres WKF-1/WKF-2 = WKF2. Amérique centrale/latine = South_Am. Afrique : Maghreb + Égypte/Libye = North_Africa ; Afrique australe (RSA, NAM, BOT, ZAM, MRI) = South_Africa ; reste de l'Afrique subsaharienne = Africa."
+  },
+  "Kata": {
+    "format": "Nom sportdata sans le numéro, Title Case, espaces -> _ (ex. '009 Chibana No Kushanku' -> Chibana_No_Kushanku)",
+    "inconnu": "Kata non renseigné sur la page -> kata probable non encore effectué par l'athlète dans la compétition.",
+    "sans_kata": "Match où la page n'indique aucun kata (drapeaux seuls) = tour non disputé -> aucune ligne (UFAK Alger 2026 M : 13 matchs retirés). Exceptions saisies à la demande : Beja_Da_Costa_Diogo (SA Salzbourg 2026, Papuren) et Almosawi (AKF Bali 2026 finale, Unsu)."
+  },
+  "Style": {
+    "regle": "Déduit du kata (ShitoRyu / Shotokan)",
+    "exception": "Suparinpei : style habituel de l'athlète (Shotokan pour un pratiquant Shotokan)",
+    "katas_par_style": {
+      "ShitoRyu": [
+        "Anan",
+        "Anan_Dai",
+        "Bassai",
+        "Bassai_Dai",
+        "Chatanyara_Kushanku",
+        "Chibana_No_Kushanku",
+        "Chinto",
+        "Gojushiho",
+        "Heiku",
+        "Kishimoto_No_Kushanku",
+        "Kousoukun_Dai",
+        "Kousoukun_Sho",
+        "Kururunfa",
+        "Kusanku",
+        "Kyan_No_Chinto",
+        "Matsumura_Bassai",
+        "Nipaipo",
+        "Ohan",
+        "Ohan_Dai",
+        "Oyadomari_No_Passai",
+        "Pachu",
+        "Paiku",
+        "Papuren",
+        "Sanseiru",
+        "Seipai",
+        "Seisan",
+        "Shisochin",
+        "Suparinpei",
+        "Tomari_Bassai",
+        "Unshu"
+      ],
+      "Shotokan": [
+        "Enpi",
+        "Gankaku",
+        "Gojushiho_Dai",
+        "Gojushiho_Sho",
+        "Jion",
+        "Jitte",
+        "Kanku_Dai",
+        "Kanku_Sho",
+        "Meikyo",
+        "Nijushiho",
+        "Sansai",
+        "Sochin",
+        "Suparinpei",
+        "Unsu"
+      ]
+    },
+    "ajouts": {
+      "Shinpa": "ShitoRyu"
+    }
+  },
+  "Age_Ranking": {
+    "athlete_connu": "Valeurs de la dernière occurrence de l'athlète dans le fichier",
+    "nouvel_athlete": "Age = moyenne arrondie des athlètes connus de la catégorie dans la compétition, Ranking = 400, en attendant les vraies valeurs"
+  },
+  "competitions": [
+    {
+      "Competition": "K1_Paris",
+      "Year": 2024,
+      "Type_Compet": "K1",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 222
+    },
+    {
+      "Competition": "K1_Antalya",
+      "Year": 2024,
+      "Type_Compet": "K1",
+      "Region_monde": "Est_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 192
+    },
+    {
+      "Competition": "K1_Cairo",
+      "Year": 2024,
+      "Type_Compet": "K1",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 222
+    },
+    {
+      "Competition": "K1_Casablanca",
+      "Year": 2024,
+      "Type_Compet": "K1",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 216
+    },
+    {
+      "Competition": "SA_Athens",
+      "Year": 2024,
+      "Type_Compet": "SA",
+      "Region_monde": "South_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 444
+    },
+    {
+      "Competition": "SA_Larnaca",
+      "Year": 2024,
+      "Type_Compet": "SA",
+      "Region_monde": "South_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 374
+    },
+    {
+      "Competition": "SA_Salzbourg",
+      "Year": 2024,
+      "Type_Compet": "SA",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 448
+    },
+    {
+      "Competition": "K1_Paris",
+      "Year": 2025,
+      "Type_Compet": "K1",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 228
+    },
+    {
+      "Competition": "K1_Hanghou",
+      "Year": 2025,
+      "Type_Compet": "K1",
+      "Region_monde": "Est_Asia",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 216
+    },
+    {
+      "Competition": "K1_Cairo",
+      "Year": 2025,
+      "Type_Compet": "K1",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 216
+    },
+    {
+      "Competition": "K1_Rabat",
+      "Year": 2025,
+      "Type_Compet": "K1",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 210
+    },
+    {
+      "Competition": "SA_Tbilisi",
+      "Year": 2025,
+      "Type_Compet": "SA",
+      "Region_monde": "Est_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 484
+    },
+    {
+      "Competition": "SA_Larnaca",
+      "Year": 2025,
+      "Type_Compet": "SA",
+      "Region_monde": "South_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 492
+    },
+    {
+      "Competition": "SA_Salzbourg",
+      "Year": 2025,
+      "Type_Compet": "SA",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 496
+    },
+    {
+      "Competition": "SA_KualaLumpur",
+      "Year": 2025,
+      "Type_Compet": "SA",
+      "Region_monde": "Est_Asia",
+      "Drapeau_juges": null,
+      "Note": true,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 486
+    },
+    {
+      "Competition": "SA_Tbilisi",
+      "Year": 2026,
+      "Type_Compet": "SA",
+      "Region_monde": "Est_EUR",
+      "Drapeau_juges": 5,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 510
+    },
+    {
+      "Competition": "SA_ACoruna",
+      "Year": 2026,
+      "Type_Compet": "SA",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": 5,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 542
+    },
+    {
+      "Competition": "K1_Istanbul",
+      "Year": 2026,
+      "Type_Compet": "K1",
+      "Region_monde": "Est_EUR",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 222
+    },
+    {
+      "Competition": "K1_Roma",
+      "Year": 2026,
+      "Type_Compet": "K1",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 228
+    },
+    {
+      "Competition": "K1_Leshan",
+      "Year": 2026,
+      "Type_Compet": "K1",
+      "Region_monde": "Est_Asia",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 174
+    },
+    {
+      "Competition": "K1_Rabat",
+      "Year": 2026,
+      "Type_Compet": "K1",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "Pool_1",
+        "Pool_2",
+        "Pool_3",
+        "R1",
+        "R2"
+      ],
+      "lignes": 216
+    },
+    {
+      "Competition": "SA_Salzbourg",
+      "Year": 2026,
+      "Type_Compet": "SA",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": 5,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "PW2",
+        "PW3",
+        "RP1",
+        "RP2",
+        "RP3",
+        "RP4",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 542
+    },
+    {
+      "Competition": "EKF_Frankfurt",
+      "Year": 2026,
+      "Type_Compet": "EKF",
+      "Region_monde": "West_EUR",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "PW1",
+        "RP2",
+        "RP3",
+        "SM",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 154
+    },
+    {
+      "Competition": "AKF_Bali",
+      "Year": 2026,
+      "Type_Compet": "AKF",
+      "Region_monde": "Est_Asia",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "RP2",
+        "SM",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 94
+    },
+    {
+      "Competition": "PKF_Rio",
+      "Year": 2026,
+      "Type_Compet": "PKF",
+      "Region_monde": "South_Am",
+      "Drapeau_juges": 5,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "RP1",
+        "RP2",
+        "SM",
+        "T1",
+        "T2",
+        "T3"
+      ],
+      "lignes": 118
+    },
+    {
+      "Competition": "UFAK_Algiers",
+      "Year": 2026,
+      "Type_Compet": "UFAK",
+      "Region_monde": "North_Africa",
+      "Drapeau_juges": 7,
+      "Note": false,
+      "N_Tour": [
+        "Bronze",
+        "Final",
+        "RP2",
+        "SM",
+        "T2",
+        "T3"
+      ],
+      "lignes": 28
+    }
+  ]
+}
